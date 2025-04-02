@@ -1,0 +1,82 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.eggs/
+*.pytest_cache/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+*.iws
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+
+# Build files
+build/
+dist/
+*.o
+*.out
+*.a
+*.so
+*.exe
+*.dll
+*.dylib
+
+# Environment variables
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+
+# Git
+*.orig
+*.rej
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Miscellaneous
+*.lock
+*.log.*
+*.pid
+*.seed
+*.pid.lock
+
+# Custom exclusions
+# Add any project-specific exclusions below

@@ -1,0 +1,17 @@
+# Core project folders
+/src
+/tests
+/config
+/logs
+
+# Core files
+/src/api_wrapper.py
+/src/data_handler.py
+/src/signal_generator.py
+/src/trading_logic.py
+/tests/test_api_wrapper.py
+/tests/test_data_handler.py
+/tests/test_signal_generator.py
+/tests/test_trading_logic.py
+/config/settings.py
+/logs/.gitkeep
