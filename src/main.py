@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.api.deriv_api_handler import connect_deriv_api, disconnect, get_option_proposal, buy_option_contract, subscribe_to_contract_updates
 from src.data.data_handler import get_historical_data, subscribe_to_ticks
-from src.models.signal_model import train_or_load_model, generate_signal, HOLD, BUY, SELL, LONG_MA_PERIOD
+from src.models.signal_model import train_or_load_model, generate_signal, HOLD, BUY, SELL, MIN_FEATURE_POINTS
 from config.settings import (INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT,
                             OPTION_DURATION, OPTION_DURATION_UNIT, STAKE_AMOUNT, 
                             BASIS, CURRENCY, MAX_CONCURRENT_TRADES)
@@ -21,16 +21,21 @@ logger = setup_logger()
 # --- State Management --- 
 # Change to dictionary to store contracts with their subscriptions
 active_contracts = {}
-# Use deque to store recent ticks for signal generation
-recent_ticks_deque = deque(maxlen=LONG_MA_PERIOD + 5)
+# Use deque to store recent ticks for signal generation - update size based on feature requirements
+recent_ticks_deque = deque(maxlen=MIN_FEATURE_POINTS + 10)  # Add some buffer
 
 # --- Tick Handler Function ---
-async def handle_tick(tick_data_msg, api_obj=None):
+async def handle_tick(tick_data_msg, api_obj=None, model_obj=None):
     global recent_ticks_deque, active_contracts
     
     # Use the passed api_obj instead of relying on a global variable
     if not api_obj:
         logger.error("API object is not provided to handle_tick.")
+        return
+        
+    # Check if model is provided
+    if not model_obj:
+        logger.error("ML model is not provided to handle_tick.")
         return
         
     if not isinstance(tick_data_msg, dict) or 'tick' not in tick_data_msg:
@@ -45,14 +50,13 @@ async def handle_tick(tick_data_msg, api_obj=None):
     if current_price and current_time:
         recent_ticks_deque.append({'time': pd.to_datetime(current_time, unit='s'), 'close': current_price})
     
-    # Convert deque to DataFrame for signal generation
-    if len(recent_ticks_deque) >= 2:  # Need at least 2 points for previous comparison
-        signal_df = pd.DataFrame(list(recent_ticks_deque))
+    # Generate trading signal using ML model
+    if len(recent_ticks_deque) >= MIN_FEATURE_POINTS:  # Make sure we have enough data for feature engineering
+        # Generate signal by passing the model and the entire deque
+        signal = generate_signal(model_obj, recent_ticks_deque)
         
-        # Generate trading signal
-        signal = generate_signal(signal_df)
         if signal != HOLD:
-            logger.info(f"Generated Signal: {signal}")
+            logger.info(f"Generated ML Signal: {signal}")
         
         # Risk management check
         can_trade = len(active_contracts) < MAX_CONCURRENT_TRADES
@@ -238,13 +242,19 @@ async def main():
         else:
             logger.warning("Historical data is empty.")
 
-        # Initialize model
+        # Initialize model - Load ONCE at startup
         model = train_or_load_model()
-        logger.info(f"Model status: {model.get('status')}")
+        
+        # Check if model loaded successfully
+        if model is None:
+            logger.critical("Failed to load ML model. Bot cannot proceed with ML strategy.")
+            return
+            
+        logger.info(f"ML model loaded successfully and ready for predictions")
 
         # Subscribe to tick stream using ReactiveX Observable
-        # Pass the api object to be used in handle_tick
-        subscription_data = await subscribe_to_ticks(api, INSTRUMENT, api_ref=api)
+        # Pass both the api object and model object to be used in handle_tick
+        subscription_data = await subscribe_to_ticks(api, INSTRUMENT, api_ref=api, model_ref=model)
         
         if subscription_data:
             logger.info(f"Subscription initiated for {INSTRUMENT}. Waiting for ticks...")

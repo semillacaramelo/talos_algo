@@ -1,5 +1,6 @@
 import os
-import pandas as pd # Import pandas
+import pandas as pd
+import joblib
 from src.utils.logger import setup_logger
 
 # Define signal constants
@@ -7,95 +8,106 @@ BUY = "BUY"
 SELL = "SELL"
 HOLD = "HOLD"
 
-# --- Strategy Parameters --- 
-SHORT_MA_PERIOD = 5
-LONG_MA_PERIOD = 20
-# Minimum data points needed to calculate the longest MA
-MIN_DATA_POINTS = LONG_MA_PERIOD
+# Define minimum data points needed for feature engineering
+MIN_FEATURE_POINTS = 20
 
 # Set up logger
 logger = setup_logger()
 
 def train_or_load_model():
     """
-    Placeholder function to train or load a model.
+    Load a pre-trained ML model from disk.
 
     Returns:
-        dict: A dummy object representing the model status.
+        object: The loaded ML model object, or None if loading fails.
     """
-    model_path = "models/basic_predictor.joblib"
-
+    # Path is relative to the current file
+    MODEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'basic_predictor.joblib')
+    
     try:
-        if os.path.exists(model_path):
-            logger.info("Model file found, attempting to load.")
-            # TODO: Add loading logic using joblib/pickle
-            return {"status": "loaded"}
-        else:
-            logger.info("Model file not found. Training placeholder activated.")
-            # TODO: Add actual training logic using historical data
-            return {"status": "trained_dummy"}
+        logger.info(f"Attempting to load model from: {MODEL_FILE_PATH}")
+        model = joblib.load(MODEL_FILE_PATH)
+        logger.info(f"Model loaded successfully from {MODEL_FILE_PATH}")
+        return model
+    except FileNotFoundError:
+        logger.error(f"Model file not found at {MODEL_FILE_PATH}. Cannot generate ML signals.")
+        return None
     except Exception as e:
-        logger.exception("Error in train_or_load_model")
-        return {"status": "error"}
+        logger.exception(f"Failed to load model from {MODEL_FILE_PATH}: {e}")
+        return None
 
-def generate_signal(price_data_df):
+def generate_signal(model_obj, recent_ticks_deque):
     """
-    Generates a trading signal based on SMA crossover.
+    Generates a trading signal based on ML model prediction.
 
     Parameters:
-        price_data_df (pd.DataFrame): DataFrame containing recent price data 
-                                      with at least a 'close' column.
+        model_obj (object): The loaded ML model object
+        recent_ticks_deque (deque): Deque containing recent tick data
 
     Returns:
         str: A trading signal (BUY, SELL, or HOLD).
     """
-    # Check if we have any data
-    if price_data_df is None or len(price_data_df) == 0:
-        logger.debug("No data provided to generate signal.")
+    # Check if model is loaded
+    if model_obj is None:
+        logger.error("ML model not loaded, cannot generate signal")
         return HOLD
 
-    # Log data information for debugging
-    if len(price_data_df) < MIN_DATA_POINTS:
-        logger.debug(f"Insufficient data points ({len(price_data_df)}/{MIN_DATA_POINTS}) to calculate crossover.")
+    # Check if we have enough data points for feature engineering
+    if len(recent_ticks_deque) < MIN_FEATURE_POINTS:
+        logger.debug(f"Insufficient data points ({len(recent_ticks_deque)}/{MIN_FEATURE_POINTS}) for ML prediction.")
         return HOLD
 
     try:
-        # Ensure 'close' column is numeric
-        price_data_df['close'] = pd.to_numeric(price_data_df['close'])
-
-        # Calculate SMAs
-        price_data_df['short_ma'] = price_data_df['close'].rolling(window=SHORT_MA_PERIOD).mean()
-        price_data_df['long_ma'] = price_data_df['close'].rolling(window=LONG_MA_PERIOD).mean()
-
-        # Drop rows with NaN values (resulting from the rolling calculations)
-        valid_data = price_data_df.dropna()
+        # Preparing features for ML prediction
+        logger.info("Preparing features for ML prediction...")
+        df = pd.DataFrame(list(recent_ticks_deque))
         
-        # Check if we have enough valid data after MA calculations
-        if len(valid_data) < 2:
-            logger.debug(f"Not enough valid data after MA calculations. Need at least 2 rows, got {len(valid_data)}.")
+        # TODO: Replace these placeholders with ACTUAL feature engineering used for training!
+        # Example Features (MUST BE REPLACED):
+        df['price_change_1'] = df['close'].diff()
+        df['price_change_5'] = df['close'].diff(5)
+        df['rolling_mean_5'] = df['close'].rolling(window=5).mean()
+        df['rolling_mean_10'] = df['close'].rolling(window=10).mean()
+        df['ma_diff'] = df['rolling_mean_5'] - df['rolling_mean_10']
+        df['rolling_std_5'] = df['close'].rolling(window=5).std()
+        
+        # Drop rows with NaN values resulting from feature calculation
+        df.dropna(inplace=True)
+        
+        # Select ONLY the feature columns used by the model in the correct order
+        feature_columns = ['price_change_1', 'price_change_5', 'ma_diff', 'rolling_std_5']  # TODO: Use ACTUAL feature columns
+        
+        # Check if we have enough data after preprocessing
+        if df.empty or len(df) == 0:
+            logger.warning("No data available after preprocessing for ML prediction.")
             return HOLD
-
-        # Get the latest two values to check for crossover
-        last_row = valid_data.iloc[-1]
-        prev_row = valid_data.iloc[-2]
-
-        # Check for crossover conditions
-        if last_row['short_ma'] > last_row['long_ma'] and prev_row['short_ma'] <= prev_row['long_ma']:
-            logger.info(f"SMA Crossover Detected: BUY Signal (Short MA: {last_row['short_ma']:.2f}, Long MA: {last_row['long_ma']:.2f})")
-            return BUY
-        elif last_row['short_ma'] < last_row['long_ma'] and prev_row['short_ma'] >= prev_row['long_ma']:
-            logger.info(f"SMA Crossover Detected: SELL Signal (Short MA: {last_row['short_ma']:.2f}, Long MA: {last_row['long_ma']:.2f})")
-            return SELL
-        else:
-            # Only log detailed info occasionally to avoid log spam
-            if hasattr(generate_signal, 'log_counter'):
-                generate_signal.log_counter += 1
-                if generate_signal.log_counter % 10 == 0:  # Log every 10th check
-                    logger.debug(f"No crossover: Short MA ({last_row['short_ma']:.2f}) vs Long MA ({last_row['long_ma']:.2f})")
+            
+        # Get the most recent row of features for prediction
+        latest_features = df[feature_columns].iloc[-1:] 
+        
+        # Log feature shape for debugging
+        logger.debug(f"Features shape for prediction: {latest_features.shape}")
+        
+        # Make prediction
+        try:
+            prediction = model_obj.predict(latest_features)[0]
+            logger.debug(f"Raw model prediction: {prediction}")
+            
+            # Map prediction to trading signal
+            if prediction == 1:
+                logger.info("ML Prediction: RISE")
+                return BUY
+            elif prediction == 0:
+                logger.info("ML Prediction: FALL")
+                return SELL
             else:
-                generate_signal.log_counter = 1
+                logger.warning(f"Unexpected model prediction value: {prediction}")
+                return HOLD
+                
+        except Exception as e:
+            logger.exception(f"Error during model prediction: {e}")
             return HOLD
-
+            
     except Exception as e:
-        logger.exception("Error generating SMA signal")
+        logger.exception("Error generating ML signal")
         return HOLD
