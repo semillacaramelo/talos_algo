@@ -25,7 +25,7 @@ active_contracts = {}
 recent_ticks_deque = deque(maxlen=MIN_FEATURE_POINTS + 10)  # Add some buffer
 
 # --- Tick Handler Function ---
-async def handle_tick(tick_data_msg, api_obj=None, model_obj=None):
+async def handle_tick(tick_data_msg, api_obj=None, model_obj=None, scaler_obj=None):
     global recent_ticks_deque, active_contracts
     
     # Use the passed api_obj instead of relying on a global variable
@@ -52,8 +52,8 @@ async def handle_tick(tick_data_msg, api_obj=None, model_obj=None):
     
     # Generate trading signal using ML model
     if len(recent_ticks_deque) >= MIN_FEATURE_POINTS:  # Make sure we have enough data for feature engineering
-        # Generate signal by passing the model and the entire deque
-        signal = generate_signal(model_obj, recent_ticks_deque)
+        # Generate signal by passing the model, scaler and the entire deque
+        signal = generate_signal(model_obj, scaler_obj, recent_ticks_deque)
         
         if signal != HOLD:
             logger.info(f"Generated ML Signal: {signal}")
@@ -243,18 +243,21 @@ async def main():
             logger.warning("Historical data is empty.")
 
         # Initialize model - Load ONCE at startup
-        model = train_or_load_model()
+        model, scaler = train_or_load_model()
         
         # Check if model loaded successfully
         if model is None:
             logger.critical("Failed to load ML model. Bot cannot proceed with ML strategy.")
             return
             
+        if scaler is None:
+            logger.warning("No scaler loaded. Will use unscaled features for predictions.")
+            
         logger.info(f"ML model loaded successfully and ready for predictions")
 
         # Subscribe to tick stream using ReactiveX Observable
-        # Pass both the api object and model object to be used in handle_tick
-        subscription_data = await subscribe_to_ticks(api, INSTRUMENT, api_ref=api, model_ref=model)
+        # Pass both the api object, model object and scaler object to be used in handle_tick
+        subscription_data = await subscribe_to_ticks(api, INSTRUMENT, api_ref=api, model_ref=model, scaler_ref=scaler)
         
         if subscription_data:
             logger.info(f"Subscription initiated for {INSTRUMENT}. Waiting for ticks...")
