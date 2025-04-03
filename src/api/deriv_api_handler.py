@@ -234,9 +234,13 @@ async def subscribe_to_contract_updates(api, contract_id, on_update_callback):
         def on_completed():
             logger.info(f"Observable stream for contract {contract_id} completed.")
         
-        # Add our observer to the Observable
+        # Define the wrapper callback for on_next that schedules the async callback
+        def _on_next_wrapper(message):
+            asyncio.create_task(on_update_callback(message))
+        
+        # Add our observer to the Observable using the wrapper
         disposable = observable.subscribe(
-            on_next=on_update_callback,
+            on_next=_on_next_wrapper,
             on_error=on_error,
             on_completed=on_completed
         )

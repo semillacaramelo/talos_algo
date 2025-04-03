@@ -83,7 +83,7 @@ async def handle_tick(tick_data_msg, api_obj=None):
                             
                             # Subscribe to contract updates
                             contract_subscription_disposable = await subscribe_to_contract_updates(
-                                api_obj, contract_id, handle_contract_update
+                                api_obj, contract_id, contract_update_handler_wrapper
                             )
                             
                             # Store the contract with its subscription
@@ -129,7 +129,7 @@ async def handle_tick(tick_data_msg, api_obj=None):
                             
                             # Subscribe to contract updates
                             contract_subscription_disposable = await subscribe_to_contract_updates(
-                                api_obj, contract_id, handle_contract_update
+                                api_obj, contract_id, contract_update_handler_wrapper
                             )
                             
                             # Store the contract with its subscription
@@ -154,6 +154,17 @@ async def handle_tick(tick_data_msg, api_obj=None):
             
             except Exception as e:
                 logger.exception(f"Error in Digital Options trading execution")
+
+# Non-async wrapper for the async contract update handler
+def contract_update_handler_wrapper(message):
+    """
+    Non-async wrapper function that schedules the async handler on the event loop.
+    This solves the 'coroutine not awaited' warning.
+    
+    Parameters:
+        message (dict): The message received from the proposal_open_contract stream
+    """
+    asyncio.create_task(handle_contract_update(message))
 
 async def handle_contract_update(message):
     """
