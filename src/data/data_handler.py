@@ -69,13 +69,14 @@ async def get_historical_data(api, instrument, granularity, count):
         logger.exception("Error fetching historical data")
         return pd.DataFrame()
 
-async def subscribe_to_ticks(api, instrument):
+async def subscribe_to_ticks(api, instrument, api_ref=None):
     """
     Subscribe to tick data using the SubscriptionManager.
 
     Parameters:
         api: Connected Deriv API object.
         instrument (str): The trading instrument symbol.
+        api_ref: Reference to the API object to be passed to handle_tick.
 
     Returns:
         dict: Dictionary containing the observable and disposable subscription objects, or None on error.
@@ -99,8 +100,9 @@ async def subscribe_to_ticks(api, instrument):
         # Define observer callbacks
         def on_tick(message):
             if isinstance(message, dict) and 'tick' in message:
-                # Use the handle_tick function from main.py to process the tick
-                handle_tick(message)
+                # Create a task to run the async handle_tick function
+                # Use the passed api_ref instead of relying on a global variable
+                asyncio.create_task(handle_tick(message, api_ref))
             else:
                 logger.debug(f"Received non-tick message: {message}")
 

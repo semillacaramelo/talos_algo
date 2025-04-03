@@ -100,102 +100,152 @@ async def disconnect(api):
         logger.exception(f"Error during API disconnection: {e}")
         return False
 
-async def place_trade_order(api, instrument, trade_type, volume, price=None, stop_loss=None, take_profit=None):
+async def get_option_proposal(api, instrument, contract_type, duration, duration_unit, currency, amount, basis):
     """
-    Places a trade order via the Deriv API.
-
+    Get a price proposal for a digital option contract.
+    
     Parameters:
         api: Connected Deriv API object.
-        instrument (str): The trading instrument symbol.
-        trade_type (str): 'BUY' or 'SELL'.
-        volume (float): The trade volume/stake.
-        price (float, optional): The price for limit orders. Defaults to None for market orders.
-        stop_loss (float, optional): Stop loss price level.
-        take_profit (float, optional): Take profit price level.
-
+        instrument (str): Trading instrument symbol.
+        contract_type (str): "CALL" for Rise prediction or "PUT" for Fall prediction.
+        duration (int): The contract duration.
+        duration_unit (str): The contract duration unit ('t' for ticks, 's' for seconds, 'm' for minutes).
+        currency (str): The currency for the proposal.
+        amount (float): The stake amount.
+        basis (str): The basis for the proposal ("stake" or "payout").
+        
     Returns:
-        dict: The response from the API regarding the order placement, or None on error.
+        dict: The proposal response from the API, or None on error.
     """
     try:
-        # Construct the order request for CFD
-        # IMPORTANT: Verify parameters against Deriv API documentation for 'buy' endpoint (CFD)
-        order_request = {
-            "buy": 1, # This will be overwritten by trade_type logic
-            "parameters": {
-                "contract_type": "CFD", # Verify exact name if needed
-                "symbol": instrument,
-                "volume": volume,
-                # Optional parameters:
-                # "price": price, # For limit orders
-                # "stop_loss": stop_loss,
-                # "take_profit": take_profit,
-                # "leverage": 500, # Example: Add leverage if required/configurable
-            },
-            "price": 1 # Placeholder price, API might require proposal first for CFDs
-                      # Or the 'buy' call might handle market orders directly.
-                      # CONSULT API DOCS: Often requires proposal_open_contract or similar
+        # Ensure amount is a float and duration is an integer
+        amount = float(amount)
+        duration = int(duration)
+        
+        # Construct the proposal request for a digital option
+        proposal_request = {
+            "proposal": 1,
+            "amount": amount,
+            "basis": basis,
+            "contract_type": contract_type,
+            "currency": currency,
+            "duration": duration,
+            "duration_unit": duration_unit,
+            "symbol": instrument,
         }
-
-        # Set direction
-        if trade_type.upper() == 'BUY':
-            # Assuming buy=1 is correct for the main request structure
-            pass # buy=1 is already set
-        elif trade_type.upper() == 'SELL':
-            # How sell is specified depends heavily on the API endpoint structure.
-            # Option 1: Use sell=1 instead of buy=1
-            # order_request["sell"] = 1
-            # del order_request["buy"]
-            # Option 2: Use a different contract type or parameter
-            # order_request["parameters"]["contract_type"] = "CFD_SELL" # Fictional example
-            # Option 3: The 'buy' endpoint handles both, direction inferred differently?
-            # For now, we'll assume buy=1 is used and direction might be implicit or handled by SL/TP logic
-            # This part NEEDS verification from Deriv API docs.
-            logger.warning("SELL order logic needs verification based on Deriv API spec for CFDs.")
-            # As a temporary measure, let's assume buy=1 is used and SL/TP define direction implicitly
-            # This is likely INCORRECT and needs fixing based on docs.
-            pass
-        else:
-            logger.error(f"Invalid trade type: {trade_type}")
+        
+        logger.info(f"Requesting option proposal: {instrument} {contract_type} {duration}{duration_unit} {basis}:{amount} {currency}")
+        
+        # Send the proposal request
+        proposal_response = await api.proposal(proposal_request)
+        
+        # Check for errors
+        if proposal_response and proposal_response.get('error'):
+            error_details = proposal_response.get('error', {})
+            logger.error(f"Option proposal failed: {error_details}")
             return None
-
-        # Add optional parameters to the 'parameters' sub-dictionary
-        if price:
-            order_request["parameters"]["price"] = price
-        if stop_loss:
-            order_request["parameters"]["stop_loss"] = stop_loss
-        if take_profit:
-            order_request["parameters"]["take_profit"] = take_profit
-
-        logger.info(f"Placing {trade_type} order for {instrument} with request: {order_request}")
-
-        # --- CRITICAL: Verify API Call --- 
-        # The 'api.buy' call might be incorrect for CFDs.
-        # Often, you need to get a price proposal first (api.proposal_open_contract or similar)
-        # and then use the ID from the proposal to execute the trade.
-        # Replace 'api.buy' with the correct sequence based on Deriv API docs.
-        # Example (Conceptual - needs correct API calls):
-        # proposal = await api.proposal_open_contract(order_request['parameters'])
-        # if proposal and not proposal.get('error'):
-        #     proposal_id = proposal.get('proposal_open_contract', {}).get('id')
-        #     if proposal_id:
-        #         order_response = await api.buy({"buy": proposal_id, "price": proposal['proposal_open_contract']['ask_price'] })
-        #     else: # Handle missing proposal ID
-        # else: # Handle proposal error
-
-        # Using api.buy directly as a placeholder - LIKELY NEEDS CHANGE
-        order_response = await api.buy(order_request["parameters"])
-        # --------------------------------
-
-        logger.info(f"Order placement response: {order_response}")
-
-        if order_response and not order_response.get('error'):
-            logger.info("Order placed successfully (based on placeholder API call).")
-            return order_response
-        else:
-            error_details = order_response.get('error', {})
-            logger.error(f"Order placement failed: {error_details}")
-            return None
-
+        
+        # Log successful proposal
+        if proposal_response and proposal_response.get('proposal'):
+            proposal = proposal_response.get('proposal')
+            logger.info(f"Option proposal successful - ID: {proposal.get('id')}, " 
+                       f"Price: {proposal.get('ask_price')}, Payout: {proposal.get('payout')}")
+        
+        return proposal_response
+        
     except Exception as e:
-        logger.exception(f"Error placing {trade_type} order for {instrument}")
+        logger.exception(f"Error requesting option proposal for {instrument} {contract_type}")
+        return None
+
+async def buy_option_contract(api, proposal_id, price):
+    """
+    Buy a digital option contract using a proposal ID.
+    
+    Parameters:
+        api: Connected Deriv API object.
+        proposal_id (str): The proposal ID from a successful proposal request.
+        price (float): The price from the proposal.
+        
+    Returns:
+        dict: The buy confirmation response from the API, or None on error.
+    """
+    try:
+        # Create the buy request
+        buy_request = {
+            "buy": proposal_id,
+            "price": price
+        }
+        
+        logger.info(f"Buying contract with proposal ID: {proposal_id[:8]}... at price: {price}")
+        
+        # Send the buy request
+        buy_response = await api.buy(buy_request)
+        
+        # Check for errors
+        if buy_response and buy_response.get('error'):
+            error_details = buy_response.get('error', {})
+            logger.error(f"Contract purchase failed: {error_details}")
+            return None
+        
+        # Log successful purchase
+        if buy_response and buy_response.get('buy'):
+            contract_info = buy_response.get('buy')
+            logger.info(f"Contract purchased successfully - Contract ID: {contract_info.get('contract_id')}, "
+                       f"Purchase Time: {contract_info.get('purchase_time')}, "
+                       f"Balance After: {contract_info.get('balance_after')}")
+        
+        return buy_response
+        
+    except Exception as e:
+        logger.exception(f"Error buying option contract with proposal ID {proposal_id[:8]}...")
+        return None
+
+async def subscribe_to_contract_updates(api, contract_id, on_update_callback):
+    """
+    Subscribe to real-time updates for a specific contract.
+    
+    Parameters:
+        api: Connected Deriv API object.
+        contract_id (str/int): The ID of the contract to monitor.
+        on_update_callback (callable): Function to handle update messages.
+        
+    Returns:
+        object: The disposable subscription object, or None on error.
+    """
+    try:
+        logger.info(f"Attempting to subscribe to contract updates for contract ID: {contract_id}")
+        
+        # Access the subscription manager
+        manager = api.subscription_manager
+        
+        # Construct the subscription request
+        request = {
+            "proposal_open_contract": 1,
+            "contract_id": contract_id
+        }
+        
+        # Subscribe using the manager - returns an Observable
+        observable = await manager.subscribe(request)
+        
+        # Define observer callbacks
+        def on_error(error):
+            logger.error(f"Observable error for contract {contract_id}: {error}")
+            
+        def on_completed():
+            logger.info(f"Observable stream for contract {contract_id} completed.")
+        
+        # Add our observer to the Observable
+        disposable = observable.subscribe(
+            on_next=on_update_callback,
+            on_error=on_error,
+            on_completed=on_completed
+        )
+        
+        logger.info(f"Successfully initiated subscription for contract ID: {contract_id}")
+        
+        # Return the disposable for later cleanup
+        return disposable
+        
+    except Exception as e:
+        logger.exception(f"Error subscribing to contract updates for contract ID: {contract_id}")
         return None

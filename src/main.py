@@ -1,30 +1,38 @@
 import asyncio
 from collections import deque
-from src.api.deriv_api_handler import connect_deriv_api, place_trade_order, disconnect
+import sys
+import os
+
+# Add the project root directory to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from src.api.deriv_api_handler import connect_deriv_api, disconnect, get_option_proposal, buy_option_contract, subscribe_to_contract_updates
 from src.data.data_handler import get_historical_data, subscribe_to_ticks
 from src.models.signal_model import train_or_load_model, generate_signal, HOLD, BUY, SELL, LONG_MA_PERIOD
-from config.settings import INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT
+from config.settings import (INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT,
+                            OPTION_DURATION, OPTION_DURATION_UNIT, STAKE_AMOUNT, 
+                            BASIS, CURRENCY, MAX_CONCURRENT_TRADES)
 from src.utils.logger import setup_logger
 import pandas as pd
 
 # Set up logger
 logger = setup_logger()
 
-# --- Risk Management Placeholders --- 
-MAX_CONCURRENT_TRADES = 1
-TRADE_VOLUME = 0.01
-STOP_LOSS_POINTS = 10
-TAKE_PROFIT_POINTS = 20
-
 # --- State Management --- 
-open_trades = []
+# Change to dictionary to store contracts with their subscriptions
+active_contracts = {}
 # Use deque to store recent ticks for signal generation
 recent_ticks_deque = deque(maxlen=LONG_MA_PERIOD + 5)
 
 # --- Tick Handler Function ---
-def handle_tick(tick_data_msg):
-    global recent_ticks_deque, open_trades
+async def handle_tick(tick_data_msg, api_obj=None):
+    global recent_ticks_deque, active_contracts
     
+    # Use the passed api_obj instead of relying on a global variable
+    if not api_obj:
+        logger.error("API object is not provided to handle_tick.")
+        return
+        
     if not isinstance(tick_data_msg, dict) or 'tick' not in tick_data_msg:
         return
     
@@ -47,25 +55,162 @@ def handle_tick(tick_data_msg):
             logger.info(f"Generated Signal: {signal}")
         
         # Risk management check
-        can_trade = len(open_trades) < MAX_CONCURRENT_TRADES
+        can_trade = len(active_contracts) < MAX_CONCURRENT_TRADES
         
-        # Trading logic
+        # Trading logic for Digital Options
         if can_trade and current_price and signal in (BUY, SELL):
-            logger.info(f"{signal} signal received. Trade execution would happen here.")
-            # Commented out for safety until verified with correct API parameters
-            # if signal == BUY:
-            #     sl_price = current_price - STOP_LOSS_POINTS
-            #     tp_price = current_price + TAKE_PROFIT_POINTS
-            #     # Would call place_trade_order here with verified parameters
-            # elif signal == SELL:
-            #     sl_price = current_price + STOP_LOSS_POINTS
-            #     tp_price = current_price - TAKE_PROFIT_POINTS
-            #     # Would call place_trade_order here with verified parameters
+            try:
+                if signal == BUY:
+                    # CALL option - prediction that price will RISE
+                    logger.info(f"BUY signal received. Requesting RISE (CALL) option proposal...")
+                    proposal_response = await get_option_proposal(
+                        api_obj, INSTRUMENT, "CALL", OPTION_DURATION, OPTION_DURATION_UNIT, 
+                        CURRENCY, STAKE_AMOUNT, BASIS
+                    )
+                    
+                    if proposal_response and proposal_response.get('proposal'):
+                        proposal = proposal_response.get('proposal')
+                        proposal_id = proposal.get('id')
+                        ask_price = proposal.get('ask_price')
+                        
+                        logger.info(f"Buying RISE (CALL) option contract with proposal ID: {proposal_id}")
+                        buy_confirmation = await buy_option_contract(api_obj, proposal_id, ask_price)
+                        
+                        if buy_confirmation and buy_confirmation.get('buy'):
+                            contract_info = buy_confirmation.get('buy')
+                            contract_id = contract_info.get('contract_id')
+                            logger.info(f"Successfully purchased RISE contract ID: {contract_id}")
+                            
+                            # Subscribe to contract updates
+                            contract_subscription_disposable = await subscribe_to_contract_updates(
+                                api_obj, contract_id, handle_contract_update
+                            )
+                            
+                            # Store the contract with its subscription
+                            if contract_subscription_disposable:
+                                active_contracts[contract_id] = {
+                                    'details': {
+                                        'type': 'CALL',
+                                        'entry_price': current_price,
+                                        'stake': STAKE_AMOUNT,
+                                        'purchase_time': contract_info.get('purchase_time'),
+                                        'expiry_time': contract_info.get('start_time') + OPTION_DURATION * (
+                                            60 if OPTION_DURATION_UNIT == 'm' else 
+                                            1 if OPTION_DURATION_UNIT == 's' else 
+                                            10  # Approximation for ticks
+                                        )
+                                    },
+                                    'disposable': contract_subscription_disposable
+                                }
+                                logger.info(f"Stored active contract {contract_id} with its subscription.")
+                            else:
+                                logger.error(f"Failed to subscribe to updates for contract {contract_id}")
+                
+                elif signal == SELL:
+                    # PUT option - prediction that price will FALL
+                    logger.info(f"SELL signal received. Requesting FALL (PUT) option proposal...")
+                    proposal_response = await get_option_proposal(
+                        api_obj, INSTRUMENT, "PUT", OPTION_DURATION, OPTION_DURATION_UNIT, 
+                        CURRENCY, STAKE_AMOUNT, BASIS
+                    )
+                    
+                    if proposal_response and proposal_response.get('proposal'):
+                        proposal = proposal_response.get('proposal')
+                        proposal_id = proposal.get('id')
+                        ask_price = proposal.get('ask_price')
+                        
+                        logger.info(f"Buying FALL (PUT) option contract with proposal ID: {proposal_id}")
+                        buy_confirmation = await buy_option_contract(api_obj, proposal_id, ask_price)
+                        
+                        if buy_confirmation and buy_confirmation.get('buy'):
+                            contract_info = buy_confirmation.get('buy')
+                            contract_id = contract_info.get('contract_id')
+                            logger.info(f"Successfully purchased FALL contract ID: {contract_id}")
+                            
+                            # Subscribe to contract updates
+                            contract_subscription_disposable = await subscribe_to_contract_updates(
+                                api_obj, contract_id, handle_contract_update
+                            )
+                            
+                            # Store the contract with its subscription
+                            if contract_subscription_disposable:
+                                active_contracts[contract_id] = {
+                                    'details': {
+                                        'type': 'PUT',
+                                        'entry_price': current_price,
+                                        'stake': STAKE_AMOUNT,
+                                        'purchase_time': contract_info.get('purchase_time'),
+                                        'expiry_time': contract_info.get('start_time') + OPTION_DURATION * (
+                                            60 if OPTION_DURATION_UNIT == 'm' else 
+                                            1 if OPTION_DURATION_UNIT == 's' else 
+                                            10  # Approximation for ticks
+                                        )
+                                    },
+                                    'disposable': contract_subscription_disposable
+                                }
+                                logger.info(f"Stored active contract {contract_id} with its subscription.")
+                            else:
+                                logger.error(f"Failed to subscribe to updates for contract {contract_id}")
+            
+            except Exception as e:
+                logger.exception(f"Error in Digital Options trading execution")
+
+async def handle_contract_update(message):
+    """
+    Handle updates for an open contract.
+    
+    Parameters:
+        message (dict): The message received from the proposal_open_contract stream
+    """
+    global active_contracts
+    
+    try:
+        # Verify structure and extract contract details
+        if 'proposal_open_contract' not in message:
+            logger.warning("Received contract update with missing proposal_open_contract key")
+            return
+            
+        contract = message['proposal_open_contract']
+        
+        # Extract the contract_id and is_sold status
+        try:
+            contract_id = contract['contract_id']
+            is_sold = contract.get('is_sold', 0)
+            
+            # Log brief update
+            logger.debug(f"Contract update received for ID: {contract_id}")
+            
+            # Check if contract is finished
+            if is_sold == 1:
+                # Extract profit information
+                profit = contract.get('profit', 0)
+                logger.info(f"Contract {contract_id} is now finished. Profit/Loss: {profit}")
+                
+                # Find and remove from active_contracts
+                if contract_id in active_contracts:
+                    # First dispose of the subscription
+                    try:
+                        active_contracts[contract_id]['disposable'].dispose()
+                        logger.info(f"Disposed subscription for contract {contract_id}")
+                    except Exception as e:
+                        logger.error(f"Error disposing subscription for contract {contract_id}: {e}")
+                    
+                    # Then remove from active contracts
+                    active_contracts.pop(contract_id)
+                    logger.info(f"Removed contract {contract_id} from active_contracts. Active contracts remaining: {len(active_contracts)}")
+                else:
+                    logger.warning(f"Contract {contract_id} marked as sold but not found in active_contracts")
+        
+        except KeyError as e:
+            logger.error(f"Missing expected key in contract update: {e}")
+            
+    except Exception as e:
+        logger.exception("Error processing contract update")
 
 async def main():
     logger.info("Bot is starting...")
-    api = None
     subscription_data = None
+    api = None
 
     try:
         # Connect to API
@@ -87,14 +232,15 @@ async def main():
         logger.info(f"Model status: {model.get('status')}")
 
         # Subscribe to tick stream using ReactiveX Observable
-        subscription_data = await subscribe_to_ticks(api, INSTRUMENT)
+        # Pass the api object to be used in handle_tick
+        subscription_data = await subscribe_to_ticks(api, INSTRUMENT, api_ref=api)
         
         if subscription_data:
             logger.info(f"Subscription initiated for {INSTRUMENT}. Waiting for ticks...")
             
             # The tick handling is now done by the observer callbacks in subscribe_to_ticks
             # We just need to keep the main coroutine alive
-            await asyncio.sleep(30)  # Run for 30 seconds
+            await asyncio.sleep(300)  # Run for 5 minutes (longer for testing)
             
         else:
             logger.error(f"Failed to initiate subscription for {INSTRUMENT}.")
@@ -102,16 +248,29 @@ async def main():
     except Exception as e:
         logger.exception("Error during main execution.")
     finally:
-        # Clean up subscription if it exists
+        # Clean up subscriptions
         if subscription_data and 'disposable' in subscription_data:
             try:
-                logger.info("Disposing subscription...")
-                # Ensure we dispose of the subscription and wait a moment for cleanup
+                logger.info("Disposing tick subscription...")
                 subscription_data['disposable'].dispose()
                 await asyncio.sleep(0.2)  # Give some time for cleanup
-                logger.info("Subscription disposed.")
+                logger.info("Tick subscription disposed.")
             except Exception as e:
-                logger.exception("Error disposing subscription")
+                logger.exception("Error disposing tick subscription")
+
+        # Clean up any active contract subscriptions
+        if active_contracts:
+            try:
+                logger.info(f"Disposing {len(active_contracts)} active contract subscriptions...")
+                for contract_id, contract_data in list(active_contracts.items()):
+                    try:
+                        contract_data['disposable'].dispose()
+                        logger.info(f"Disposed subscription for contract {contract_id}")
+                    except Exception as e:
+                        logger.error(f"Error disposing subscription for contract {contract_id}: {e}")
+                logger.info("All contract subscriptions disposed.")
+            except Exception as e:
+                logger.exception("Error during contract subscriptions cleanup")
 
         # Proper disconnect with error handling
         if api:
