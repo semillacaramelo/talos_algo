@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import joblib
 from src.utils.logger import setup_logger
 
@@ -7,6 +8,10 @@ from src.utils.logger import setup_logger
 BUY = "BUY"
 SELL = "SELL"
 HOLD = "HOLD"
+
+# Define SMA periods for strategy
+SHORT_MA_PERIOD = 5
+LONG_MA_PERIOD = 20
 
 # Define feature columns used for prediction
 FEATURE_COLUMNS = ['price_change_1', 'price_change_5', 'ma_diff']
@@ -32,8 +37,8 @@ def engineer_features(df):
     df['price_change_5'] = df['close'].diff(5)
     
     # Calculate moving averages
-    df['sma_5'] = df['close'].rolling(window=5).mean()
-    df['sma_20'] = df['close'].rolling(window=20).mean()
+    df['sma_5'] = df['close'].rolling(window=SHORT_MA_PERIOD).mean()
+    df['sma_20'] = df['close'].rolling(window=LONG_MA_PERIOD).mean()
     
     # Calculate difference between moving averages
     df['ma_diff'] = df['sma_5'] - df['sma_20']
@@ -157,3 +162,71 @@ def generate_signal(model_obj, scaler_obj, recent_ticks_deque):
     except Exception as e:
         logger.exception("Error generating ML signal")
         return HOLD
+
+def generate_signals_for_dataset(model_obj, scaler_obj, df):
+    """
+    Generates trading signals for an entire dataset using the ML model.
+    Useful for backtesting or analyzing historical performance.
+
+    Parameters:
+        model_obj (object): The loaded ML model object
+        scaler_obj (object): The loaded scaler object for feature scaling
+        df (pd.DataFrame): DataFrame containing at least 'time' and 'close' columns
+
+    Returns:
+        pd.Series: A series of trading signals indexed the same as the input dataframe
+    """
+    # Check if model is loaded
+    if model_obj is None:
+        logger.error("ML model not loaded, cannot generate signals for dataset")
+        return pd.Series(index=df.index)
+
+    try:
+        # Engineer features for the entire dataset
+        logger.info("Engineering features for the dataset...")
+        feature_df = engineer_features(df.copy())
+        
+        # Check if we have data after feature engineering
+        if feature_df.empty:
+            logger.warning("Feature engineering resulted in empty dataset")
+            return pd.Series(index=df.index)
+        
+        # Extract features for prediction
+        X = feature_df[FEATURE_COLUMNS]
+        
+        # Apply scaler if available
+        if scaler_obj:
+            try:
+                X_scaled = scaler_obj.transform(X)
+                logger.info("Features scaled successfully")
+            except Exception as e:
+                logger.exception(f"Error applying scaler to dataset: {e}")
+                return pd.Series(index=df.index)
+        else:
+            X_scaled = X
+        
+        # Generate predictions
+        try:
+            predictions = model_obj.predict(X_scaled)
+            logger.info(f"Generated {len(predictions)} predictions")
+            
+            # Map predictions to signals (1=BUY, -1=SELL)
+            signals = pd.Series(
+                np.where(predictions == 1, 1, -1),
+                index=feature_df.index
+            )
+            
+            # Count signal types for logging
+            buy_count = len(signals[signals == 1])
+            sell_count = len(signals[signals == -1])
+            logger.info(f"Signal distribution - BUY: {buy_count}, SELL: {sell_count}")
+            
+            return signals
+            
+        except Exception as e:
+            logger.exception(f"Error generating predictions: {e}")
+            return pd.Series(index=df.index)
+            
+    except Exception as e:
+        logger.exception(f"Error in generate_signals_for_dataset: {e}")
+        return pd.Series(index=df.index)

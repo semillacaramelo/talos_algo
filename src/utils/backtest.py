@@ -19,16 +19,18 @@ class SimpleBacktester:
         """
         self.initial_capital = initial_capital
     
-    def run_sma_backtest(self, historical_df, short_period=SHORT_MA_PERIOD, long_period=LONG_MA_PERIOD, 
-                        risk_per_trade=0.02, stop_loss_pct=0.01, take_profit_pct=0.02, 
-                        max_position_size=None, leverage=1):
+    def run_backtest(self, historical_df, signals=None, short_period=SHORT_MA_PERIOD, long_period=LONG_MA_PERIOD, 
+                    risk_per_trade=0.02, stop_loss_pct=0.01, take_profit_pct=0.02, 
+                    max_position_size=None, leverage=1):
         """
-        Run a backtest of the SMA crossover strategy.
+        Run a backtest of a trading strategy.
         
         Parameters:
             historical_df (pd.DataFrame): Historical price data with 'time' and 'close' columns.
-            short_period (int): Period for the short SMA.
-            long_period (int): Period for the long SMA.
+            signals (pd.Series, optional): Pre-calculated signals (1=buy, -1=sell, 0=hold).
+                                          If None, SMA crossover signals will be calculated.
+            short_period (int): Period for the short SMA (only used if signals=None).
+            long_period (int): Period for the long SMA (only used if signals=None).
             risk_per_trade (float): Percentage of capital to risk per trade (0.02 = 2%).
             stop_loss_pct (float): Stop loss percentage (0.01 = 1%).
             take_profit_pct (float): Take profit percentage (0.02 = 2%).
@@ -46,21 +48,43 @@ class SimpleBacktester:
         # Make a copy to avoid modifying original data
         df = historical_df.copy()
         
-        # Calculate SMAs
-        df['short_ma'] = df['close'].rolling(window=short_period).mean()
-        df['long_ma'] = df['close'].rolling(window=long_period).mean()
+        calculate_sma_signals = True
+
+        # If external signals are provided, use them instead of calculating SMA signals
+        if signals is not None:
+            logger.info("Using provided external signals for backtest.")
+            # Ensure index alignment if necessary before assigning
+            if df.index.equals(signals.index):
+                df['signal'] = signals
+                calculate_sma_signals = False
+            else:
+                logger.warning("External signals index does not match DataFrame index. Attempting reindex.")
+                # Try to align, handle potential errors if alignment fails
+                try:
+                    df['signal'] = signals.reindex(df.index).fillna(0)
+                    calculate_sma_signals = False
+                except Exception as e:
+                    logger.error(f"Failed to align external signals: {e}. Proceeding with SMA calculation.")
+                    calculate_sma_signals = True
         
-        # Drop rows with NaN values from SMA calculations
-        df = df.dropna().reset_index(drop=True)
-        
-        # Generate signals
-        df['signal'] = 0  # 0: no signal, 1: buy, -1: sell
-        
-        # Buy signal when short MA crosses above long MA
-        df.loc[(df['short_ma'] > df['long_ma']) & (df['short_ma'].shift(1) <= df['long_ma'].shift(1)), 'signal'] = 1
-        
-        # Sell signal when short MA crosses below long MA
-        df.loc[(df['short_ma'] < df['long_ma']) & (df['short_ma'].shift(1) >= df['long_ma'].shift(1)), 'signal'] = -1
+        # Calculate SMA signals if external signals weren't provided or failed to align
+        if calculate_sma_signals:
+            logger.info("Calculating SMA signals for backtest.")
+            # Calculate SMAs
+            df['short_ma'] = df['close'].rolling(window=short_period).mean()
+            df['long_ma'] = df['close'].rolling(window=long_period).mean()
+            
+            # Drop rows with NaN values from SMA calculations
+            df = df.dropna().reset_index(drop=True)
+            
+            # Generate signals
+            df['signal'] = 0  # 0: no signal, 1: buy, -1: sell
+            
+            # Buy signal when short MA crosses above long MA
+            df.loc[(df['short_ma'] > df['long_ma']) & (df['short_ma'].shift(1) <= df['long_ma'].shift(1)), 'signal'] = 1
+            
+            # Sell signal when short MA crosses below long MA
+            df.loc[(df['short_ma'] < df['long_ma']) & (df['short_ma'].shift(1) >= df['long_ma'].shift(1)), 'signal'] = -1
         
         # Initialize position, capital, and trade tracking
         # Fix for FutureWarning: replace deprecated 'method' parameter with modern methods
