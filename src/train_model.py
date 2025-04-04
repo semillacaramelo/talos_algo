@@ -1,152 +1,142 @@
-#!/usr/bin/env python3
+
+import os
+import logging
 import asyncio
 import pandas as pd
-import joblib
-import os
-import sys
-import logging
-
-# Add the project root directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from sklearn.ensemble import RandomForestClassifier # Changed from LogisticRegression
+import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, accuracy_score
+import joblib
 
-# Import project code
-from src.api.deriv_api_handler import connect_deriv_api, disconnect
 from src.data.data_handler import get_historical_data
-from src.models.signal_model import engineer_features, FEATURE_COLUMNS # Ensure this uses the updated list
+from src.models.signal_model import engineer_features
+from src.utils.logger import setup_logger
 from config.settings import INSTRUMENT, TIMEFRAME_SECONDS
 
-# Setup basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logger
+logger = setup_logger()
 
-async def fetch_data_for_training(count=5000):
-    """
-    Fetches historical data from the Deriv API for model training.
-    
-    Parameters:
-        count (int): Number of historical data points to fetch
+async def fetch_training_data():
+    """Fetch historical data for training."""
+    try:
+        from src.api.deriv_api_handler import DerivAPIWrapper
+        api = DerivAPIWrapper()
+        await api.connect()
         
-    Returns:
-        pd.DataFrame: DataFrame containing historical price data
-    """
-    print(f"Fetching {count} historical data points for {INSTRUMENT}...")
-    
-    # Connect to the API
-    api = await connect_deriv_api()
-    if not api:
-        print("Failed to connect to Deriv API.")
-        return None
-    
-    try:
-        # Fetch historical data
-        historical_df = await get_historical_data(api, INSTRUMENT, TIMEFRAME_SECONDS, count)
-        print(f"Successfully fetched {len(historical_df)} data points.")
-        return historical_df
+        # Fetch 5000 bars of historical data
+        historical_data = await get_historical_data(
+            api=api.api,
+            instrument=INSTRUMENT,
+            granularity=TIMEFRAME_SECONDS,
+            count=5000
+        )
+        
+        await api.disconnect()
+        return historical_data
+        
     except Exception as e:
-        print(f"Error fetching historical data: {e}")
-        return None
-    finally:
-        # Ensure proper disconnection
-        await disconnect(api)
-        print("Disconnected from Deriv API.")
+        logger.exception("Error fetching training data")
+        return pd.DataFrame()
 
-def train_and_save_model(df):
-    """
-    Trains and saves a machine learning model using the provided data.
-    
-    Parameters:
-        df (pd.DataFrame): DataFrame containing time and close price data
-    """
-    print("Starting feature engineering process...")
-    
-    # Engineer features
-    df = engineer_features(df)
-    
-    # Check if dataframe is empty after feature engineering
-    if df.empty:
-        print("Error: DataFrame is empty after feature engineering.")
-        return
-    
-    print(f"Feature engineering completed. Data shape: {df.shape}")
-    
-    # Define target - predict next candle's direction
-    df['future_price'] = df['close'].shift(-1)
-    df['target'] = (df['future_price'] > df['close']).astype(int)
-    df.dropna(subset=['target'], inplace=True)  # Remove last row with NaN target
-
-    # Check if FEATURE_COLUMNS are present after engineering and target creation
-    missing_cols = [col for col in FEATURE_COLUMNS if col not in df.columns]
-    if missing_cols:
-        logging.error(f"Missing required feature columns after engineering: {missing_cols}")
-        return
-    
-    logging.info(f"Target distribution: {df['target'].value_counts().to_dict()}")
-    
-    # Prepare data using the imported FEATURE_COLUMNS
-    X = df[FEATURE_COLUMNS]
-    y = df['target']
-    
-    # Split data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-    
-    # Check if training data is empty
-    if len(X_train) == 0 or len(y_train) == 0:
-        print("Error: Training data is empty after splitting.")
-        return
-    
-    print(f"Training data shape: {X_train.shape}, Test data shape: {X_test.shape}")
-    
-    # Scale features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Train RandomForest model
-    logging.info("Training RandomForestClassifier model...")
-    model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced', n_jobs=-1)
+def prepare_features_and_target(df):
+    """Prepare features and target variable."""
     try:
+        # Engineer features using existing function
+        feature_df = engineer_features(df.copy())
+        
+        if feature_df.empty:
+            logger.error("Feature engineering resulted in empty DataFrame")
+            return None, None
+            
+        # Create target variable (next candle direction)
+        # 1 for price increase, 0 for decrease or no change
+        feature_df['target'] = (feature_df['close'].shift(-1) > feature_df['close']).astype(int)
+        
+        # Remove last row (has NaN target)
+        feature_df = feature_df.iloc[:-1]
+        
+        # Select features and target
+        X = feature_df[['price_change_1', 'price_change_5', 'ma_diff', 
+                       'RSI_14', 'ATRr_14', 'STOCHk_14_3_3', 'STOCHd_14_3_3',
+                       'MACD_12_26_9', 'MACDs_12_26_9']]
+        y = feature_df['target']
+        
+        return X, y
+        
+    except Exception as e:
+        logger.exception("Error preparing features and target")
+        return None, None
+
+def train_and_save_model(X, y):
+    """Train RandomForest model and save it with its scaler."""
+    try:
+        # Train/test split (no shuffle to maintain time series integrity)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, shuffle=False
+        )
+        
+        # Scale features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Initialize and train model
+        model = RandomForestClassifier(
+            n_estimators=100,
+            random_state=42,
+            class_weight='balanced',
+            n_jobs=-1
+        )
+        
         model.fit(X_train_scaled, y_train)
-        logging.info("Model training completed.")
-    except Exception as e:
-        logging.exception(f"Error during model training: {e}")
-        return # Stop if training fails
-    
-    # Evaluate model
-    y_pred = model.predict(X_test_scaled)
-    print(f"Model Accuracy: {accuracy_score(y_test, y_pred):.4f}")
-    print(classification_report(y_test, y_pred))
-    
-    # Save model & scaler
-    model_dir = os.path.join(os.path.dirname(__file__), 'models')
-    os.makedirs(model_dir, exist_ok=True)
-    
-    model_path = os.path.join(model_dir, 'basic_predictor.joblib')
-    scaler_path = os.path.join(model_dir, 'scaler.joblib')
-
-    try:
+        
+        # Evaluate model
+        y_pred = model.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        logger.info(f"Model Accuracy: {accuracy:.4f}")
+        logger.info("\nClassification Report:\n" + 
+                   classification_report(y_test, y_pred))
+        
+        # Save model and scaler
+        model_path = os.path.join('src', 'models', 'basic_predictor.joblib')
+        scaler_path = os.path.join('src', 'models', 'scaler.joblib')
+        
         joblib.dump(model, model_path)
-        logging.info(f"RandomForest model saved to {model_path}")
-    except Exception as e:
-        logging.exception(f"Error saving model to {model_path}: {e}")
-
-    try:
         joblib.dump(scaler, scaler_path)
-        logging.info(f"Scaler saved to {scaler_path}")
+        
+        logger.info(f"Model saved to {model_path}")
+        logger.info(f"Scaler saved to {scaler_path}")
+        
+        return True
+        
     except Exception as e:
-        logging.exception(f"Error saving scaler to {scaler_path}: {e}")
+        logger.exception("Error in model training pipeline")
+        return False
+
+async def main():
+    """Main training pipeline."""
+    logger.info("Starting model training pipeline...")
+    
+    # Fetch data
+    df = await fetch_training_data()
+    if df.empty:
+        logger.error("Failed to fetch training data")
+        return
+    
+    # Prepare features and target
+    X, y = prepare_features_and_target(df)
+    if X is None or y is None:
+        logger.error("Failed to prepare features and target")
+        return
+    
+    # Train and save model
+    success = train_and_save_model(X, y)
+    if success:
+        logger.info("Model training pipeline completed successfully")
+    else:
+        logger.error("Model training pipeline failed")
 
 if __name__ == "__main__":
-    print("Starting model training process...")
-    
-    hist_df = asyncio.run(fetch_data_for_training())
-    
-    if hist_df is not None and not hist_df.empty:
-        train_and_save_model(hist_df)
-    else:
-        print("Failed to fetch data, cannot train model.")
-    
-    print("Training process finished.")
+    asyncio.run(main())
