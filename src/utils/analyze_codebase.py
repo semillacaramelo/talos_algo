@@ -35,11 +35,31 @@ def analyze_codebase() -> None:
         }
     }
 
-    excluded_dirs = {'.git', '__pycache__', 'node_modules', '.pytest_cache'}
+    excluded_dirs = {
+        '.git', '__pycache__', 'node_modules', '.pytest_cache',
+        '.pythonlibs', '.upm', '.config', 'attached_assets',
+        'build', 'dist', '*.egg-info', '.coverage', 'htmlcov',
+        '.replit_cache', '.local', '.cache'
+    }
+
+    # Only analyze files in project structure defined in README
+    included_dirs = {
+        'config', 'docs', 'logs', 'src', 'tests',
+        'static', 'templates'
+    }
     
     for root, dirs, files in os.walk('.'):
-        # Skip excluded directories
-        dirs[:] = [d for d in dirs if d not in excluded_dirs]
+        # Skip excluded directories and only include project directories
+        base_dir = root.split(os.sep)[1] if len(root.split(os.sep)) > 1 else root
+        if base_dir.startswith('.') or base_dir in excluded_dirs:
+            dirs[:] = []
+            continue
+            
+        if base_dir not in included_dirs and root != '.':
+            dirs[:] = []
+            continue
+            
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in excluded_dirs]
         
         for file in files:
             file_path = os.path.join(root, file)
