@@ -4,20 +4,24 @@ import pandas as pd
 import joblib
 import os
 import sys
+import logging
 
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier # Changed from LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 
 # Import project code
-from api.deriv_api_handler import connect_deriv_api, disconnect
-from data.data_handler import get_historical_data
-from models.signal_model import engineer_features, FEATURE_COLUMNS
+from src.api.deriv_api_handler import connect_deriv_api, disconnect
+from src.data.data_handler import get_historical_data
+from src.models.signal_model import engineer_features, FEATURE_COLUMNS # Ensure this uses the updated list
 from config.settings import INSTRUMENT, TIMEFRAME_SECONDS
+
+# Setup basic logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 async def fetch_data_for_training(count=5000):
     """
@@ -73,10 +77,16 @@ def train_and_save_model(df):
     df['future_price'] = df['close'].shift(-1)
     df['target'] = (df['future_price'] > df['close']).astype(int)
     df.dropna(subset=['target'], inplace=True)  # Remove last row with NaN target
+
+    # Check if FEATURE_COLUMNS are present after engineering and target creation
+    missing_cols = [col for col in FEATURE_COLUMNS if col not in df.columns]
+    if missing_cols:
+        logging.error(f"Missing required feature columns after engineering: {missing_cols}")
+        return
     
-    print(f"Target distribution: {df['target'].value_counts().to_dict()}")
+    logging.info(f"Target distribution: {df['target'].value_counts().to_dict()}")
     
-    # Prepare data
+    # Prepare data using the imported FEATURE_COLUMNS
     X = df[FEATURE_COLUMNS]
     y = df['target']
     
@@ -95,10 +105,15 @@ def train_and_save_model(df):
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
-    # Train model
-    print("Training LogisticRegression model...")
-    model = LogisticRegression(random_state=42, class_weight='balanced')
-    model.fit(X_train_scaled, y_train)
+    # Train RandomForest model
+    logging.info("Training RandomForestClassifier model...")
+    model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced', n_jobs=-1)
+    try:
+        model.fit(X_train_scaled, y_train)
+        logging.info("Model training completed.")
+    except Exception as e:
+        logging.exception(f"Error during model training: {e}")
+        return # Stop if training fails
     
     # Evaluate model
     y_pred = model.predict(X_test_scaled)
@@ -111,12 +126,18 @@ def train_and_save_model(df):
     
     model_path = os.path.join(model_dir, 'basic_predictor.joblib')
     scaler_path = os.path.join(model_dir, 'scaler.joblib')
-    
-    joblib.dump(model, model_path)
-    print(f"Model saved to {model_path}")
-    
-    joblib.dump(scaler, scaler_path)
-    print(f"Scaler saved to {scaler_path}")
+
+    try:
+        joblib.dump(model, model_path)
+        logging.info(f"RandomForest model saved to {model_path}")
+    except Exception as e:
+        logging.exception(f"Error saving model to {model_path}: {e}")
+
+    try:
+        joblib.dump(scaler, scaler_path)
+        logging.info(f"Scaler saved to {scaler_path}")
+    except Exception as e:
+        logging.exception(f"Error saving scaler to {scaler_path}: {e}")
 
 if __name__ == "__main__":
     print("Starting model training process...")

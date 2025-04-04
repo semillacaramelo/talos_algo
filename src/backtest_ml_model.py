@@ -82,7 +82,7 @@ async def run_ml_backtest():
             trades_df = backtest_results['trades']
             equity_curve = backtest_results['equity_curve']
             
-            logger.info("ML Backtest Summary:")
+            logger.info("--- Random Forest Backtest Summary ---")
             logger.info(f"Initial Capital: ${metrics['initial_capital']:.2f}")
             logger.info(f"Final Capital: ${metrics['final_capital']:.2f}")
             logger.info(f"Total Return: {metrics['total_return_pct']:.2f}%")
@@ -95,25 +95,25 @@ async def run_ml_backtest():
                 
                 # Save trades to CSV
                 if not trades_df.empty:
-                    trades_df.to_csv("ml_backtest_trades.csv", index=False)
-                    logger.info("Saved ML trades to ml_backtest_trades.csv")
+                    trades_df.to_csv("ml_rf_backtest_trades.csv", index=False)
+                    logger.info("Saved Random Forest trades to ml_rf_backtest_trades.csv")
                 
                 # Save backtest results
-                equity_curve.to_csv("ml_backtest_equity_curve.csv", index=False)
-                logger.info("Saved ML equity curve to ml_backtest_equity_curve.csv")
+                equity_curve.to_csv("ml_rf_backtest_equity_curve.csv", index=False)
+                logger.info("Saved Random Forest equity curve to ml_rf_backtest_equity_curve.csv")
                 
                 # Create and save a simple equity curve plot (if matplotlib is available)
                 try:
                     plt.figure(figsize=(12, 6))
-                    plt.plot(equity_curve['time'], equity_curve['capital'], label='ML Equity Curve')
-                    plt.title(f'ML Model Strategy Backtest - {INSTRUMENT}')
+                    plt.plot(equity_curve['time'], equity_curve['capital'], label='Random Forest Equity Curve')
+                    plt.title(f'Random Forest Strategy Backtest - {INSTRUMENT}')
                     plt.xlabel('Time')
                     plt.ylabel('Capital ($)')
                     plt.grid(True, alpha=0.3)
                     plt.legend()
                     plt.tight_layout()
-                    plt.savefig('ml_backtest_equity_curve.png')
-                    logger.info("Saved ML equity curve plot to ml_backtest_equity_curve.png")
+                    plt.savefig('ml_rf_backtest_equity_curve.png')
+                    logger.info("Saved Random Forest equity curve plot to ml_rf_backtest_equity_curve.png")
                 except Exception as e:
                     logger.warning(f"Could not create equity curve plot: {e}")
         else:

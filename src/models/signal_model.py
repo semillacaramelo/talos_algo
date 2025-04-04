@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import pandas_ta as ta
 import joblib
 from src.utils.logger import setup_logger
 
@@ -14,7 +15,8 @@ SHORT_MA_PERIOD = 5
 LONG_MA_PERIOD = 20
 
 # Define feature columns used for prediction
-FEATURE_COLUMNS = ['price_change_1', 'price_change_5', 'ma_diff']
+# Updated to include RSI and ATR
+FEATURE_COLUMNS = ['price_change_1', 'price_change_5', 'ma_diff', 'RSI_14', 'ATRr_14']
 
 # Define minimum data points needed for feature engineering
 MIN_FEATURE_POINTS = 20
@@ -42,8 +44,17 @@ def engineer_features(df):
     
     # Calculate difference between moving averages
     df['ma_diff'] = df['sma_5'] - df['sma_20']
+
+    # Calculate RSI
+    logger.debug("Calculating RSI...")
+    df.ta.rsi(length=14, append=True)
+
+    # Calculate ATR
+    # TODO: ATR calculation currently uses only 'close' price; ideally needs HLC data.
+    logger.debug("Calculating ATR...")
+    df.ta.atr(length=14, append=True)
     
-    # Drop rows with NaN values from feature calculations
+    # Drop rows with NaN values AFTER all feature calculations
     df.dropna(inplace=True)
     
     return df
