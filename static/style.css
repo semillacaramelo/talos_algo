@@ -1,0 +1,41 @@
+/* Custom styles to complement Bootstrap */
+
+.log-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#log-output {
+    min-height: 250px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.card {
+    border-color: var(--bs-border-color);
+}
+
+.status-section, .control-section {
+    padding: 0.5rem 0;
+}
+
+/* Ensure buttons have consistent width */
+.btn {
+    min-width: 100px;
+}
+
+/* Make the pre tag look better with the theme */
+pre {
+    border-radius: 0.375rem;
+}
+
+/* Ensure the list group items match the dark theme */
+.list-group-item {
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
