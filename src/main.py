@@ -15,298 +15,280 @@ from config.settings import (INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUN
 from src.utils.logger import setup_logger
 import pandas as pd
 
-# Set up logger
-logger = setup_logger()
+class TradingBot:
+    def __init__(self):
+        self.logger = setup_logger()
+        self.is_running = False
+        self.api = None
+        self.model = None
+        self.scaler = None
+        self.active_contracts = {}
+        self.recent_ticks_deque = deque(maxlen=MIN_FEATURE_POINTS + 10)
+        self.subscription_data = None
 
-# --- State Management --- 
-# Change to dictionary to store contracts with their subscriptions
-active_contracts = {}
-# Use deque to store recent ticks for signal generation - update size based on feature requirements
-recent_ticks_deque = deque(maxlen=MIN_FEATURE_POINTS + 10)  # Add some buffer
+    async def start(self):
+        """Start the trading bot and its main loop."""
+        if self.is_running:
+            self.logger.warning("Bot is already running")
+            return False
 
-# --- Tick Handler Function ---
-async def handle_tick(tick_data_msg, api_obj=None, model_obj=None, scaler_obj=None):
-    global recent_ticks_deque, active_contracts
-    
-    # Use the passed api_obj instead of relying on a global variable
-    if not api_obj:
-        logger.error("API object is not provided to handle_tick.")
-        return
-        
-    # Check if model is provided
-    if not model_obj:
-        logger.error("ML model is not provided to handle_tick.")
-        return
-        
-    if not isinstance(tick_data_msg, dict) or 'tick' not in tick_data_msg:
-        return
-    
-    current_tick = tick_data_msg['tick']
-    logger.info(f"Processing tick in handler: {current_tick}")
-    current_price = current_tick.get('quote')
-    current_time = current_tick.get('epoch')
-    
-    # Accumulate tick data for signal generation
-    if current_price and current_time:
-        recent_ticks_deque.append({'time': pd.to_datetime(current_time, unit='s'), 'close': current_price})
-    
-    # Generate trading signal using ML model
-    if len(recent_ticks_deque) >= MIN_FEATURE_POINTS:  # Make sure we have enough data for feature engineering
-        # Generate signal by passing the model, scaler and the entire deque
-        signal = generate_signal(model_obj, scaler_obj, recent_ticks_deque)
-        
-        if signal != HOLD:
-            logger.info(f"Generated ML Signal: {signal}")
-        
-        # Risk management check
-        can_trade = len(active_contracts) < MAX_CONCURRENT_TRADES
-        
-        # Trading logic for Digital Options
-        if can_trade and current_price and signal in (BUY, SELL):
-            try:
-                if signal == BUY:
-                    # CALL option - prediction that price will RISE
-                    logger.info(f"BUY signal received. Requesting RISE (CALL) option proposal...")
-                    proposal_response = await get_option_proposal(
-                        api_obj, INSTRUMENT, "CALL", OPTION_DURATION, OPTION_DURATION_UNIT, 
-                        CURRENCY, STAKE_AMOUNT, BASIS
-                    )
-                    
-                    if proposal_response and proposal_response.get('proposal'):
-                        proposal = proposal_response.get('proposal')
-                        proposal_id = proposal.get('id')
-                        ask_price = proposal.get('ask_price')
-                        
-                        logger.info(f"Buying RISE (CALL) option contract with proposal ID: {proposal_id}")
-                        buy_confirmation = await buy_option_contract(api_obj, proposal_id, ask_price)
-                        
-                        if buy_confirmation and buy_confirmation.get('buy'):
-                            contract_info = buy_confirmation.get('buy')
-                            contract_id = contract_info.get('contract_id')
-                            logger.info(f"Successfully purchased RISE contract ID: {contract_id}")
-                            
-                            # Subscribe to contract updates
-                            contract_subscription_disposable = await subscribe_to_contract_updates(
-                                api_obj, contract_id, contract_update_handler_wrapper
-                            )
-                            
-                            # Store the contract with its subscription
-                            if contract_subscription_disposable:
-                                active_contracts[contract_id] = {
-                                    'details': {
-                                        'type': 'CALL',
-                                        'entry_price': current_price,
-                                        'stake': STAKE_AMOUNT,
-                                        'purchase_time': contract_info.get('purchase_time'),
-                                        'expiry_time': contract_info.get('start_time') + OPTION_DURATION * (
-                                            60 if OPTION_DURATION_UNIT == 'm' else 
-                                            1 if OPTION_DURATION_UNIT == 's' else 
-                                            10  # Approximation for ticks
-                                        )
-                                    },
-                                    'disposable': contract_subscription_disposable
-                                }
-                                logger.info(f"Stored active contract {contract_id} with its subscription.")
-                            else:
-                                logger.error(f"Failed to subscribe to updates for contract {contract_id}")
-                
-                elif signal == SELL:
-                    # PUT option - prediction that price will FALL
-                    logger.info(f"SELL signal received. Requesting FALL (PUT) option proposal...")
-                    proposal_response = await get_option_proposal(
-                        api_obj, INSTRUMENT, "PUT", OPTION_DURATION, OPTION_DURATION_UNIT, 
-                        CURRENCY, STAKE_AMOUNT, BASIS
-                    )
-                    
-                    if proposal_response and proposal_response.get('proposal'):
-                        proposal = proposal_response.get('proposal')
-                        proposal_id = proposal.get('id')
-                        ask_price = proposal.get('ask_price')
-                        
-                        logger.info(f"Buying FALL (PUT) option contract with proposal ID: {proposal_id}")
-                        buy_confirmation = await buy_option_contract(api_obj, proposal_id, ask_price)
-                        
-                        if buy_confirmation and buy_confirmation.get('buy'):
-                            contract_info = buy_confirmation.get('buy')
-                            contract_id = contract_info.get('contract_id')
-                            logger.info(f"Successfully purchased FALL contract ID: {contract_id}")
-                            
-                            # Subscribe to contract updates
-                            contract_subscription_disposable = await subscribe_to_contract_updates(
-                                api_obj, contract_id, contract_update_handler_wrapper
-                            )
-                            
-                            # Store the contract with its subscription
-                            if contract_subscription_disposable:
-                                active_contracts[contract_id] = {
-                                    'details': {
-                                        'type': 'PUT',
-                                        'entry_price': current_price,
-                                        'stake': STAKE_AMOUNT,
-                                        'purchase_time': contract_info.get('purchase_time'),
-                                        'expiry_time': contract_info.get('start_time') + OPTION_DURATION * (
-                                            60 if OPTION_DURATION_UNIT == 'm' else 
-                                            1 if OPTION_DURATION_UNIT == 's' else 
-                                            10  # Approximation for ticks
-                                        )
-                                    },
-                                    'disposable': contract_subscription_disposable
-                                }
-                                logger.info(f"Stored active contract {contract_id} with its subscription.")
-                            else:
-                                logger.error(f"Failed to subscribe to updates for contract {contract_id}")
-            
-            except Exception as e:
-                logger.exception(f"Error in Digital Options trading execution")
-
-# Non-async wrapper for the async contract update handler
-def contract_update_handler_wrapper(message):
-    """
-    Non-async wrapper function that schedules the async handler on the event loop.
-    This solves the 'coroutine not awaited' warning.
-    
-    Parameters:
-        message (dict): The message received from the proposal_open_contract stream
-    """
-    asyncio.create_task(handle_contract_update(message))
-
-async def handle_contract_update(message):
-    """
-    Handle updates for an open contract.
-    
-    Parameters:
-        message (dict): The message received from the proposal_open_contract stream
-    """
-    global active_contracts
-    
-    try:
-        # Verify structure and extract contract details
-        if 'proposal_open_contract' not in message:
-            logger.warning("Received contract update with missing proposal_open_contract key")
-            return
-            
-        contract = message['proposal_open_contract']
-        
-        # Extract the contract_id and is_sold status
         try:
+            # Connect to API
+            self.api = await connect_deriv_api()
+            if not self.api:
+                self.logger.error("Connection failed")
+                return False
+            self.logger.info("Connection successful")
+
+            # Get historical data
+            historical_df = await get_historical_data(self.api, INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT)
+            if historical_df.empty:
+                self.logger.warning("Historical data is empty")
+
+            # Initialize model
+            self.model, self.scaler = train_or_load_model()
+            if self.model is None:
+                self.logger.critical("Failed to load ML model")
+                return False
+
+            # Subscribe to tick stream
+            self.subscription_data = await subscribe_to_ticks(
+                self.api, 
+                INSTRUMENT, 
+                api_ref=self.api, 
+                model_ref=self.model, 
+                scaler_ref=self.scaler,
+                tick_handler=self.handle_tick,
+                contract_update_handler=self.handle_contract_update
+            )
+
+            if not self.subscription_data:
+                self.logger.error(f"Failed to initiate subscription for {INSTRUMENT}")
+                return False
+
+            self.is_running = True
+            self.logger.info("Bot started successfully")
+            return True
+
+        except Exception as e:
+            self.logger.exception("Error during bot startup")
+            await self.stop()
+            return False
+
+    async def stop(self):
+        """Stop the trading bot and cleanup resources."""
+        try:
+            self.is_running = False
+
+            # Clean up tick subscription
+            if self.subscription_data and 'disposable' in self.subscription_data:
+                try:
+                    self.logger.info("Disposing tick subscription...")
+                    self.subscription_data['disposable'].dispose()
+                    await asyncio.sleep(0.2)
+                    self.logger.info("Tick subscription disposed")
+                except Exception as e:
+                    self.logger.exception("Error disposing tick subscription")
+
+            # Clean up contract subscriptions
+            if self.active_contracts:
+                try:
+                    self.logger.info(f"Disposing {len(self.active_contracts)} active contract subscriptions...")
+                    for contract_id, contract_data in list(self.active_contracts.items()):
+                        try:
+                            contract_data['disposable'].dispose()
+                            self.logger.info(f"Disposed subscription for contract {contract_id}")
+                        except Exception as e:
+                            self.logger.error(f"Error disposing subscription for contract {contract_id}: {e}")
+                    self.active_contracts = {} #clear the dictionary
+                except Exception as e:
+                    self.logger.exception("Error during contract subscriptions cleanup")
+
+            # Disconnect API
+            if self.api:
+                await asyncio.sleep(0.5)
+                await disconnect(self.api)
+                await asyncio.sleep(0.5)
+                self.api = None
+
+            self.logger.info("Bot stopped successfully")
+            return True
+
+        except Exception as e:
+            self.logger.exception("Error during bot shutdown")
+            return False
+
+    def get_status(self):
+        """Get the current status of the bot."""
+        return {
+            "is_running": self.is_running,
+            "active_contracts": len(self.active_contracts),
+            "recent_ticks": len(self.recent_ticks_deque)
+        }
+
+    async def handle_tick(self, tick_data_msg):
+        """Handle incoming tick data."""
+        if not self.is_running:
+            return
+
+        if not isinstance(tick_data_msg, dict) or 'tick' not in tick_data_msg:
+            return
+
+        current_tick = tick_data_msg['tick']
+        self.logger.info(f"Processing tick in handler: {current_tick}")
+        current_price = current_tick.get('quote')
+        current_time = current_tick.get('epoch')
+
+        if current_price and current_time:
+            self.recent_ticks_deque.append({
+                'time': pd.to_datetime(current_time, unit='s'),
+                'close': current_price
+            })
+
+        if len(self.recent_ticks_deque) >= MIN_FEATURE_POINTS:
+            signal = generate_signal(self.model, self.scaler, self.recent_ticks_deque)
+
+            if signal != HOLD:
+                self.logger.info(f"Generated ML Signal: {signal}")
+
+            can_trade = len(self.active_contracts) < MAX_CONCURRENT_TRADES
+
+            if can_trade and current_price and signal in (BUY, SELL):
+                await self._execute_trade(signal, current_price)
+
+    async def handle_contract_update(self, message):
+        """Handle contract updates."""
+        if not self.is_running:
+            return
+
+        try:
+            if 'proposal_open_contract' not in message:
+                self.logger.warning("Received contract update with missing proposal_open_contract key")
+                return
+
+            contract = message['proposal_open_contract']
             contract_id = contract['contract_id']
             is_sold = contract.get('is_sold', 0)
-            
-            # Log brief update
-            logger.debug(f"Contract update received for ID: {contract_id}")
-            
-            # Check if contract is finished
+
+            self.logger.debug(f"Contract update received for ID: {contract_id}")
+
             if is_sold == 1:
-                # Extract profit information
                 profit = contract.get('profit', 0)
-                logger.info(f"Contract {contract_id} is now finished. Profit/Loss: {profit}")
+                self.logger.info(f"Contract {contract_id} is now finished. Profit/Loss: {profit}")
+
+                if contract_id in self.active_contracts:
+                    try:
+                        self.active_contracts[contract_id]['disposable'].dispose()
+                        self.logger.info(f"Disposed subscription for contract {contract_id}")
+                    except Exception as e:
+                        self.logger.error(f"Error disposing subscription for contract {contract_id}: {e}")
+
+                    self.active_contracts.pop(contract_id)
+                    self.logger.info(f"Removed contract {contract_id} from active_contracts. Active contracts remaining: {len(self.active_contracts)}")
+
+        except Exception as e:
+            self.logger.exception("Error processing contract update")
+
+    async def _execute_trade(self, signal, current_price):
+        """Execute a trade based on the signal."""
+        try:
+            if signal == BUY:
+                # CALL option - prediction that price will RISE
+                self.logger.info(f"BUY signal received. Requesting RISE (CALL) option proposal...")
+                proposal_response = await get_option_proposal(
+                    self.api, INSTRUMENT, "CALL", OPTION_DURATION, OPTION_DURATION_UNIT, 
+                    CURRENCY, STAKE_AMOUNT, BASIS
+                )
                 
-                # Find and remove from active_contracts
-                if contract_id in active_contracts:
-                    # First dispose of the subscription
-                    try:
-                        active_contracts[contract_id]['disposable'].dispose()
-                        logger.info(f"Disposed subscription for contract {contract_id}")
-                    except Exception as e:
-                        logger.error(f"Error disposing subscription for contract {contract_id}: {e}")
+                if proposal_response and proposal_response.get('proposal'):
+                    proposal = proposal_response.get('proposal')
+                    proposal_id = proposal.get('id')
+                    ask_price = proposal.get('ask_price')
                     
-                    # Then remove from active contracts
-                    active_contracts.pop(contract_id)
-                    logger.info(f"Removed contract {contract_id} from active_contracts. Active contracts remaining: {len(active_contracts)}")
-                else:
-                    logger.warning(f"Contract {contract_id} marked as sold but not found in active_contracts")
-        
-        except KeyError as e:
-            logger.error(f"Missing expected key in contract update: {e}")
-            
-    except Exception as e:
-        logger.exception("Error processing contract update")
+                    self.logger.info(f"Buying RISE (CALL) option contract with proposal ID: {proposal_id}")
+                    buy_confirmation = await buy_option_contract(self.api, proposal_id, ask_price)
+                    
+                    if buy_confirmation and buy_confirmation.get('buy'):
+                        contract_info = buy_confirmation.get('buy')
+                        contract_id = contract_info.get('contract_id')
+                        self.logger.info(f"Successfully purchased RISE contract ID: {contract_id}")
+                        
+                        # Subscribe to contract updates
+                        contract_subscription_disposable = await subscribe_to_contract_updates(
+                            self.api, contract_id, self.handle_contract_update
+                        )
+                        
+                        # Store the contract with its subscription
+                        if contract_subscription_disposable:
+                            self.active_contracts[contract_id] = {
+                                'details': {
+                                    'type': 'CALL',
+                                    'entry_price': current_price,
+                                    'stake': STAKE_AMOUNT,
+                                    'purchase_time': contract_info.get('purchase_time'),
+                                    'expiry_time': contract_info.get('start_time') + OPTION_DURATION * (
+                                        60 if OPTION_DURATION_UNIT == 'm' else 
+                                        1 if OPTION_DURATION_UNIT == 's' else 
+                                        10  # Approximation for ticks
+                                    )
+                                },
+                                'disposable': contract_subscription_disposable
+                            }
+                            self.logger.info(f"Stored active contract {contract_id} with its subscription.")
+                        else:
+                            self.logger.error(f"Failed to subscribe to updates for contract {contract_id}")
+            elif signal == SELL:
+                # PUT option - prediction that price will FALL
+                self.logger.info(f"SELL signal received. Requesting FALL (PUT) option proposal...")
+                proposal_response = await get_option_proposal(
+                    self.api, INSTRUMENT, "PUT", OPTION_DURATION, OPTION_DURATION_UNIT, 
+                    CURRENCY, STAKE_AMOUNT, BASIS
+                )
+                
+                if proposal_response and proposal_response.get('proposal'):
+                    proposal = proposal_response.get('proposal')
+                    proposal_id = proposal.get('id')
+                    ask_price = proposal.get('ask_price')
+                    
+                    self.logger.info(f"Buying FALL (PUT) option contract with proposal ID: {proposal_id}")
+                    buy_confirmation = await buy_option_contract(self.api, proposal_id, ask_price)
+                    
+                    if buy_confirmation and buy_confirmation.get('buy'):
+                        contract_info = buy_confirmation.get('buy')
+                        contract_id = contract_info.get('contract_id')
+                        self.logger.info(f"Successfully purchased FALL contract ID: {contract_id}")
+                        
+                        # Subscribe to contract updates
+                        contract_subscription_disposable = await subscribe_to_contract_updates(
+                            self.api, contract_id, self.handle_contract_update
+                        )
+                        
+                        # Store the contract with its subscription
+                        if contract_subscription_disposable:
+                            self.active_contracts[contract_id] = {
+                                'details': {
+                                    'type': 'PUT',
+                                    'entry_price': current_price,
+                                    'stake': STAKE_AMOUNT,
+                                    'purchase_time': contract_info.get('purchase_time'),
+                                    'expiry_time': contract_info.get('start_time') + OPTION_DURATION * (
+                                        60 if OPTION_DURATION_UNIT == 'm' else 
+                                        1 if OPTION_DURATION_UNIT == 's' else 
+                                        10  # Approximation for ticks
+                                    )
+                                },
+                                'disposable': contract_subscription_disposable
+                            }
+                            self.logger.info(f"Stored active contract {contract_id} with its subscription.")
+                        else:
+                            self.logger.error(f"Failed to subscribe to updates for contract {contract_id}")
+        except Exception as e:
+            self.logger.exception(f"Error in Digital Options trading execution")
 
-async def main():
-    logger.info("Bot is starting...")
-    subscription_data = None
-    api = None
-
-    try:
-        # Connect to API
-        api = await connect_deriv_api()
-        if not api:
-            logger.error("Connection failed.")
-            return
-        logger.info("Connection successful.")
-
-        # Get historical data
-        historical_df = await get_historical_data(api, INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT)
-        if not historical_df.empty:
-            logger.info("Successfully fetched historical data.")
-        else:
-            logger.warning("Historical data is empty.")
-
-        # Initialize model - Load ONCE at startup
-        model, scaler = train_or_load_model()
-        
-        # Check if model loaded successfully
-        if model is None:
-            logger.critical("Failed to load ML model. Bot cannot proceed with ML strategy.")
-            return
-            
-        if scaler is None:
-            logger.warning("No scaler loaded. Will use unscaled features for predictions.")
-            
-        logger.info(f"ML model loaded successfully and ready for predictions")
-
-        # Subscribe to tick stream using ReactiveX Observable
-        # Pass both the api object, model object and scaler object to be used in handle_tick
-        subscription_data = await subscribe_to_ticks(api, INSTRUMENT, api_ref=api, model_ref=model, scaler_ref=scaler)
-        
-        if subscription_data:
-            logger.info(f"Subscription initiated for {INSTRUMENT}. Waiting for ticks...")
-            
-            # The tick handling is now done by the observer callbacks in subscribe_to_ticks
-            # We just need to keep the main coroutine alive
-            await asyncio.sleep(300)  # Run for 5 minutes (longer for testing)
-            
-        else:
-            logger.error(f"Failed to initiate subscription for {INSTRUMENT}.")
-
-    except Exception as e:
-        logger.exception("Error during main execution.")
-    finally:
-        # Clean up subscriptions
-        if subscription_data and 'disposable' in subscription_data:
-            try:
-                logger.info("Disposing tick subscription...")
-                subscription_data['disposable'].dispose()
-                await asyncio.sleep(0.2)  # Give some time for cleanup
-                logger.info("Tick subscription disposed.")
-            except Exception as e:
-                logger.exception("Error disposing tick subscription")
-
-        # Clean up any active contract subscriptions
-        if active_contracts:
-            try:
-                logger.info(f"Disposing {len(active_contracts)} active contract subscriptions...")
-                for contract_id, contract_data in list(active_contracts.items()):
-                    try:
-                        contract_data['disposable'].dispose()
-                        logger.info(f"Disposed subscription for contract {contract_id}")
-                    except Exception as e:
-                        logger.error(f"Error disposing subscription for contract {contract_id}: {e}")
-                logger.info("All contract subscriptions disposed.")
-            except Exception as e:
-                logger.exception("Error during contract subscriptions cleanup")
-
-        # Proper disconnect with error handling
-        if api:
-            try:
-                # Ensure all pending API operations complete
-                await asyncio.sleep(0.5)  # Wait for any pending operations to complete
-                # Properly disconnect using our improved function
-                await disconnect(api)
-                # Give time for event loop to process the disconnect completely
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                logger.exception("Error during API disconnect")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Create bot instance but don't start it
+    bot = TradingBot()
+
+    # This can be used for direct testing, but we'll let the web interface control the bot
+    # asyncio.run(bot.start())
