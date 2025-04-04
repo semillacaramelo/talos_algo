@@ -2,7 +2,8 @@
 import os
 import logging
 import asyncio
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, Response
+from src.utils.logger import get_recent_logs
 from src.main import TradingBot
 from config.settings import (INSTRUMENT, TIMEFRAME_SECONDS, OPTION_DURATION, 
                            OPTION_DURATION_UNIT, STAKE_AMOUNT, CURRENCY)
@@ -40,6 +41,21 @@ def stop_bot():
     """Stop the trading bot."""
     asyncio.run(bot.stop())
     return jsonify({"status": "Bot stopped"})
+
+@app.route('/stream_logs')
+def stream_logs():
+    """Stream logs using Server-Sent Events"""
+    def generate():
+        last_id = 0
+        while True:
+            new_logs = get_recent_logs(last_id)
+            if new_logs:
+                last_id = len(get_recent_logs()) - 1
+                data = "data: " + jsonify(new_logs).get_data(as_text=True) + "\n\n"
+                yield data
+            yield ":\n\n"  # Keep-alive
+
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/get_status')
 def get_status():

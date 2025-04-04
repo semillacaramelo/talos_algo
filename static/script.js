@@ -89,12 +89,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Fetch and update logs
-    async function fetchLogs() {
-        const data = await fetchFromAPI('/get_logs');
-        if (data) {
-            updateLogOutput(data.logs);
-        }
+    // Connect to log stream
+    function connectLogStream() {
+        const eventSource = new EventSource('/stream_logs');
+        
+        eventSource.onmessage = function(event) {
+            const logs = JSON.parse(event.data);
+            logs.forEach(log => {
+                const logEntry = `[${log.timestamp}] ${log.level}: ${log.message}`;
+                if (!existingLogs.has(logEntry)) {
+                    existingLogs.add(logEntry);
+                    logOutput.textContent += logEntry + '\n';
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }
+            });
+        };
+
+        eventSource.onerror = function(error) {
+            console.error("Log stream error:", error);
+            eventSource.close();
+            // Attempt to reconnect after 5 seconds
+            setTimeout(connectLogStream, 5000);
+        };
     }
 
     // Event listener for Start button
@@ -129,11 +145,10 @@ document.addEventListener('DOMContentLoaded', function() {
         existingLogs.clear();
     });
 
-    // Initial fetch
+    // Initial fetch and stream setup
     fetchStatus();
-    fetchLogs();
+    connectLogStream();
 
-    // Periodic updates
+    // Periodic status updates
     setInterval(fetchStatus, 5000);  // Every 5 seconds
-    setInterval(fetchLogs, 3000);    // Every 3 seconds
 });
