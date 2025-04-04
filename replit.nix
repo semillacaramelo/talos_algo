@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.lsof
     pkgs.python312Packages.pytest
     pkgs.geckodriver
     pkgs.gdb

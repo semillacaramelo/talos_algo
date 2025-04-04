@@ -10,9 +10,19 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 import joblib
 
-from src.data.data_handler import get_historical_data
-from src.models.signal_model import engineer_features, FEATURE_COLUMNS
-from src.utils.logger import setup_logger
+# Fix imports to work both when run directly and as a module
+import sys
+from pathlib import Path
+
+# Add the project root to the path if running the script directly
+if __name__ == "__main__":
+    project_root = str(Path(__file__).parent.parent)
+    if project_root not in sys.path:
+        sys.path.append(project_root)
+
+from data.data_handler import get_historical_data
+from models.signal_model import engineer_features, FEATURE_COLUMNS
+from utils.logger import setup_logger
 from config.settings import INSTRUMENT, TIMEFRAME_SECONDS
 
 # Set up logger
@@ -21,7 +31,7 @@ logger = setup_logger()
 async def fetch_training_data():
     """Fetch historical data for training."""
     try:
-        from src.api.deriv_api_handler import DerivAPIWrapper
+        from api.deriv_api_handler import DerivAPIWrapper
         api = DerivAPIWrapper()
         await api.connect()
         
@@ -121,13 +131,12 @@ def train_and_save_model(X, y):
         # Initialize a base RandomForest model
         base_model = RandomForestClassifier(random_state=42, n_jobs=-1)
         
-        # Define hyperparameters to search
+        # Define hyperparameters to search (reduced to speed up training)
         param_grid = {
-            'n_estimators': [100, 200, 300],
-            'max_depth': [None, 10, 20, 30],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4],
-            'class_weight': ['balanced', 'balanced_subsample', None]
+            'n_estimators': [100, 200],
+            'max_depth': [10, 20],
+            'min_samples_split': [2, 5],
+            'class_weight': ['balanced', None]
         }
         
         # Initialize GridSearchCV
