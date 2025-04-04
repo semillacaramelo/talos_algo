@@ -2,7 +2,10 @@ import pytest
 import pandas as pd
 import numpy as np
 from unittest.mock import AsyncMock, patch, MagicMock
+from collections import deque # Import deque
 from src.trading.trading_logic import execute_trade, validate_signal, calculate_position_size
+# Import necessary components for the integration test
+from src.models.signal_model import generate_signal
 from datetime import datetime
 
 @pytest.mark.trading
@@ -151,22 +154,25 @@ class TestTradingLogic:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_trading_flow_integration(self, mock_api, mock_model, sample_ohlc_data, trading_env):
-        """Test complete trading flow from signal to execution."""
-        from src.models.signal_model import generate_signal
-        from collections import deque
-        
-        # Setup test data
+    async def test_trading_flow_integration(self, mock_api, mock_model, mock_scaler, sample_tick_data, trading_env): # Added trading_env fixture
+        """Test the complete trading flow from signal to execution."""
+        # Setup mocks for API calls
+        mock_api.proposal = AsyncMock(return_value={"proposal": {"id": "prop123", "ask_price": 10.0}})
+        mock_api.buy = AsyncMock(return_value={"buy": {"contract_id": "cont456"}})
+
+        # Setup mock model prediction to ensure a BUY signal
+        mock_model.predict.return_value = np.array([1]) # 1 corresponds to BUY
+
+        # Prepare tick data
         recent_ticks = deque(
-            [{'time': row['time'], 'close': row['close']} 
-             for _, row in sample_ohlc_data.head().iterrows()],
+            [{'time': row['time'], 'close': row['close']}
+             for _, row in sample_tick_data.iterrows()],
             maxlen=100
         )
-        
-        # Generate trading signal
-        mock_model.predict.return_value = np.array([1])  # Predict BUY
-        signal = generate_signal(mock_model, None, recent_ticks)
-        assert signal == "BUY"
+
+        # Generate signal (should now be BUY due to mock setup)
+        signal = generate_signal(mock_model, mock_scaler, recent_ticks)
+        assert signal == "BUY" # Verify the signal is BUY as expected
         
         # Validate signal
         is_valid = validate_signal(

@@ -15,7 +15,6 @@ SHORT_MA_PERIOD = 5
 LONG_MA_PERIOD = 20
 
 # Define feature columns used for prediction
-# Updated to include RSI and ATR
 FEATURE_COLUMNS = ['price_change_1', 'price_change_5', 'ma_diff', 'RSI_14', 'ATRr_14']
 
 # Define minimum data points needed for feature engineering
@@ -34,30 +33,61 @@ def engineer_features(df):
     Returns:
         pd.DataFrame: DataFrame with calculated features
     """
+    # Make a copy to avoid modifying the original
+    df_copy = df.copy()
+    
     # Calculate price changes
-    df['price_change_1'] = df['close'].diff(1)
-    df['price_change_5'] = df['close'].diff(5)
+    df_copy['price_change_1'] = df_copy['close'].diff(1)
+    df_copy['price_change_5'] = df_copy['close'].diff(5)
     
     # Calculate moving averages
-    df['sma_5'] = df['close'].rolling(window=SHORT_MA_PERIOD).mean()
-    df['sma_20'] = df['close'].rolling(window=LONG_MA_PERIOD).mean()
+    df_copy['sma_5'] = df_copy['close'].rolling(window=SHORT_MA_PERIOD).mean()
+    df_copy['sma_20'] = df_copy['close'].rolling(window=LONG_MA_PERIOD).mean()
     
     # Calculate difference between moving averages
-    df['ma_diff'] = df['sma_5'] - df['sma_20']
+    df_copy['ma_diff'] = df_copy['sma_5'] - df_copy['sma_20']
 
     # Calculate RSI
     logger.debug("Calculating RSI...")
-    df.ta.rsi(length=14, append=True)
-
+    try:
+        df_copy.ta.rsi(length=14, append=True)
+    except Exception as e:
+        logger.warning(f"Error calculating RSI: {e}. Using a simple implementation.")
+        # Simple RSI implementation as fallback
+        delta = df_copy['close'].diff()
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        avg_gain = gain.rolling(window=14).mean()
+        avg_loss = loss.rolling(window=14).mean()
+        rs = avg_gain / avg_loss.replace(0, 0.001)  # Avoid division by zero
+        df_copy['RSI_14'] = 100 - (100 / (1 + rs))
+    
     # Calculate ATR
-    # TODO: ATR calculation currently uses only 'close' price; ideally needs HLC data.
     logger.debug("Calculating ATR...")
-    df.ta.atr(length=14, append=True)
+    try:
+        # Check if we have high and low columns for proper ATR calculation
+        if 'high' in df_copy.columns and 'low' in df_copy.columns:
+            df_copy.ta.atr(high='high', low='low', close='close', length=14, append=True)
+        else:
+            # Fallback if we don't have high/low data
+            logger.warning("Missing high/low data for ATR. Using close price volatility instead.")
+            # Simple volatility based ATR approximation
+            close_changes = df_copy['close'].diff().abs()
+            df_copy['ATR_14'] = close_changes.rolling(window=14).mean()
+            # Calculate ATRr (ATR ratio) manually
+            df_copy['ATRr_14'] = df_copy['ATR_14'] / df_copy['close'] * 100
+    except Exception as e:
+        logger.warning(f"Error calculating ATR: {e}. Using a simple implementation.")
+        # Simple volatility based ATR approximation
+        close_changes = df_copy['close'].diff().abs()
+        df_copy['ATR_14'] = close_changes.rolling(window=14).mean() 
+        # Calculate ATRr (ATR ratio) manually
+        df_copy['ATRr_14'] = df_copy['ATR_14'] / df_copy['close'] * 100
     
     # Drop rows with NaN values AFTER all feature calculations
-    df.dropna(inplace=True)
+    df_copy.dropna(inplace=True)
     
-    return df
+    return df_copy
 
 def train_or_load_model():
     """
@@ -132,6 +162,13 @@ def generate_signal(model_obj, scaler_obj, recent_ticks_deque):
         if df.empty or len(df) == 0:
             logger.warning("No data available after preprocessing for ML prediction.")
             return HOLD
+        
+        # Check if all required feature columns exist
+        missing_columns = [col for col in FEATURE_COLUMNS if col not in df.columns]
+        if missing_columns:
+            for col in missing_columns:
+                logger.error(f"Required feature column '{col}' missing. Available columns: {', '.join(df.columns)}")
+            return HOLD
             
         # Get the most recent row of features for prediction
         latest_features_df = df[FEATURE_COLUMNS].iloc[-1:] 
@@ -187,10 +224,14 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
     Returns:
         pd.Series: A series of trading signals indexed the same as the input dataframe
     """
+    # Create a Series of zeros with the same index as the input DataFrame
+    # This ensures that even if processing fails, we return a Series with matching index
+    result_signals = pd.Series(0, index=df.index)
+    
     # Check if model is loaded
     if model_obj is None:
         logger.error("ML model not loaded, cannot generate signals for dataset")
-        return pd.Series(index=df.index)
+        return result_signals
 
     try:
         # Engineer features for the entire dataset
@@ -200,8 +241,15 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
         # Check if we have data after feature engineering
         if feature_df.empty:
             logger.warning("Feature engineering resulted in empty dataset")
-            return pd.Series(index=df.index)
+            return result_signals
         
+        # Check if all required feature columns exist
+        missing_columns = [col for col in FEATURE_COLUMNS if col not in feature_df.columns]
+        if missing_columns:
+            for col in missing_columns:
+                logger.error(f"Required feature column '{col}' missing. Available columns: {', '.join(feature_df.columns)}")
+            return result_signals
+
         # Extract features for prediction
         X = feature_df[FEATURE_COLUMNS]
         
@@ -212,7 +260,7 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
                 logger.info("Features scaled successfully")
             except Exception as e:
                 logger.exception(f"Error applying scaler to dataset: {e}")
-                return pd.Series(index=df.index)
+                return result_signals
         else:
             X_scaled = X
         
@@ -221,23 +269,30 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
             predictions = model_obj.predict(X_scaled)
             logger.info(f"Generated {len(predictions)} predictions")
             
-            # Map predictions to signals (1=BUY, -1=SELL)
-            signals = pd.Series(
-                np.where(predictions == 1, 1, -1),
-                index=feature_df.index
-            )
+            # Ensure predictions align with the original DataFrame index
+            if len(predictions) != len(feature_df):
+                logger.error(f"Mismatch between predictions ({len(predictions)}) and feature DataFrame length ({len(feature_df)})")
+                predictions = pd.Series(predictions[:len(feature_df)], index=feature_df.index)
+                predictions = predictions.reindex(feature_df.index, fill_value=0)  # Align predictions with DataFrame index
+                predictions = predictions.astype(int)  # Ensure predictions are integers
+                if len(predictions) != len(feature_df):
+                    logger.error("Final alignment failed: predictions and feature_df lengths still mismatch.")
+            
+            # Map predictions to signals, ensuring alignment with the original index
+            temp_signals = pd.Series(np.where(predictions == 1, 1, -1), index=feature_df.index)
+            result_signals.update(temp_signals) # Update based on matching index
             
             # Count signal types for logging
-            buy_count = len(signals[signals == 1])
-            sell_count = len(signals[signals == -1])
+            buy_count = len(result_signals[result_signals == 1])
+            sell_count = len(result_signals[result_signals == -1])
             logger.info(f"Signal distribution - BUY: {buy_count}, SELL: {sell_count}")
             
-            return signals
+            return result_signals
             
         except Exception as e:
-            logger.exception(f"Error generating predictions: {e}")
-            return pd.Series(index=df.index)
+            logger.error(f"Error generating predictions: {e}")
+            return result_signals
             
     except Exception as e:
         logger.exception(f"Error in generate_signals_for_dataset: {e}")
-        return pd.Series(index=df.index)
+        return result_signals

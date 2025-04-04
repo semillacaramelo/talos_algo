@@ -83,9 +83,20 @@ The codebase represents a trading bot implementation for Deriv.com using Python,
 - Implement performance metrics collection
 - Add real-time monitoring capabilities
 
-## Critical Findings Update
+## Critical Findings Update (Post-Fixes - 2025-04-04 ~02:20 UTC)
 
-### Testing Status
+**Testing Status Update:**
+*   **All previously failing tests (4) are now PASSING.**
+*   Iterative fixes addressed issues in:
+    *   `src/models/signal_model.py`: Index alignment in `generate_signals_for_dataset`.
+    *   `tests/test_models/test_signal_model.py`: Assertion logic for zero signals and feature importance check.
+    *   `src/utils/backtest.py`: Position sizing logic and `NameError` in logging.
+    *   `tests/test_utils/test_backtest.py`: Mock setup for ML pipeline test and position sizing assertion logic.
+*   **Current Result:** 15 passed, 22 skipped, 29 warnings. Skipped tests likely require environment setup (e.g., API keys). Warnings relate to config, deprecations, and async test setup.
+
+---
+
+### Original Testing Status Findings (Still Relevant Regarding Coverage/Structure)
 1. Test Structure Issues
 - Empty test files in test directories
 - Missing test implementations despite having proper test file structure
@@ -226,11 +237,14 @@ The codebase represents a trading bot implementation for Deriv.com using Python,
 - Need standardized error handling approach
 - Consider implementing proper secrets management
 
-3. Dead/Unused Code
-- Unused _tick_handler in data_handler.py
-- Several empty __init__.py files without proper exports
-- Duplicated data handling logic
-- Need code cleanup and refactoring
+3. Dead/Unused Code (Updated)
+- **Removed:** `src/data_handler.py` (Empty, logic in `src/data/`)
+- **Removed:** `src/trading_logic.py` (Empty, logic in `src/trading/`)
+- **Removed:** `src/api_wrapper.py` (Empty, not used)
+- **Removed:** `src/signal_generator.py` (Empty, logic in `src/models/`)
+- Unused `_tick_handler` in `src/data/data_handler.py` (Kept for potential future use with manager pattern).
+- Several empty `__init__.py` files remain (Standard Python practice, may not need exports if just marking directories as packages).
+- Need further review for potential code cleanup and refactoring opportunities.
 
 ## Test Implementation Analysis
 

@@ -38,8 +38,9 @@ async def run_backtest():
         initial_capital = 1000  # Starting with $1000
         backtester = SimpleBacktester(initial_capital=initial_capital)
         
-        # Run backtest
-        backtest_results = backtester.run_sma_backtest(
+        # Run backtest (using the correct method name 'run_backtest')
+        # Since 'signals' is not provided, it will default to SMA calculation
+        backtest_results = backtester.run_backtest(
             historical_df=historical_df,
             short_period=SHORT_MA_PERIOD,
             long_period=LONG_MA_PERIOD,

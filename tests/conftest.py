@@ -14,6 +14,8 @@ def mock_api():
     mock.authorize = AsyncMock(return_value={"authorize": {"email": "test@example.com"}})
     mock.disconnect = AsyncMock(return_value=True)
     mock.subscription_manager = MagicMock()
+    # Explicitly define is_connected as a synchronous mock method returning True
+    mock.is_connected = MagicMock(return_value=True)
     return mock
 
 @pytest.fixture
@@ -115,11 +117,3 @@ def performance_metrics():
             }
     
     return MetricsCollector()
-
-# Async support
-@pytest.fixture
-def event_loop():
-    """Create an event loop for each test case."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()

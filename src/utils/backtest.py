@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import math
 from src.models.signal_model import SHORT_MA_PERIOD, LONG_MA_PERIOD
 from src.utils.logger import setup_logger
 
@@ -21,7 +22,7 @@ class SimpleBacktester:
     
     def run_backtest(self, historical_df, signals=None, short_period=SHORT_MA_PERIOD, long_period=LONG_MA_PERIOD, 
                     risk_per_trade=0.02, stop_loss_pct=0.01, take_profit_pct=0.02, 
-                    max_position_size=None, leverage=1):
+                    max_position_size=0.1, leverage=1):
         """
         Run a backtest of a trading strategy.
         
@@ -34,7 +35,7 @@ class SimpleBacktester:
             risk_per_trade (float): Percentage of capital to risk per trade (0.02 = 2%).
             stop_loss_pct (float): Stop loss percentage (0.01 = 1%).
             take_profit_pct (float): Take profit percentage (0.02 = 2%).
-            max_position_size (float): Maximum position size as percentage of capital (e.g., 0.25 = 25%).
+            max_position_size (float): Maximum position size as percentage of capital (e.g., 0.1 = 10%).
             leverage (float): Trading leverage (1 = no leverage, 2 = 2x leverage, etc.)
             
         Returns:
@@ -203,14 +204,34 @@ class SimpleBacktester:
                     stop_loss = entry_price * (1 - stop_loss_pct)
                     take_profit = entry_price * (1 + take_profit_pct)
                     
-                    # Calculate position size while accounting for leverage
+                    # Calculate position size based on risk
                     price_distance = entry_price - stop_loss
-                    shares = risk_amount / (price_distance * leverage)
+                    if price_distance <= 0: # Avoid division by zero or negative distance
+                         logger.warning(f"Price distance for SL is zero or negative ({price_distance}). Skipping trade.")
+                         position = 0; trade_active = False; continue
+                    shares_risk = risk_amount / (price_distance * leverage)
+
+                    # Calculate position size based on max capital allocation
+                    max_allowed_capital = capital * max_position_size
+                    shares_capital_limit = math.floor((max_allowed_capital / entry_price) * 100) / 100 # Round down
+
+                    # Determine initial shares based on minimum of risk and capital limits
+                    initial_shares = min(shares_risk, shares_capital_limit)
+                    shares = math.floor(initial_shares * 100) / 100 # Floor to 2 decimal places
+
+                    # Final check: If flooring still results in exceeding capital limit, adjust shares downward
+                    while (shares * entry_price) > (max_allowed_capital + 1e-9) and shares > 0.01: # Add tolerance and ensure shares > min unit
+                        shares = math.floor((shares - 0.01) * 100) / 100 # Decrement by smallest unit
+                        logger.warning(f"Adjusting shares down to {shares:.2f} to strictly meet capital limit due to flooring interaction.")
                     
-                    # Apply maximum position size constraint if specified
-                    if max_position_size:
-                        max_shares = (capital * max_position_size) / entry_price
-                        shares = min(shares, max_shares)
+                    # Ensure shares are non-zero and positive after applying constraints
+                    if shares <= 0:
+                        logger.warning(f"Calculated shares ({shares}) are zero or negative after constraints. Skipping trade.")
+                        position = 0 # Reset position as trade is skipped
+                        trade_active = False
+                        continue # Skip to next iteration
+                        
+                    logger.debug(f"Position sizing - shares: {shares}, shares_risk: {shares_risk:.2f}, shares_capital_limit: {shares_capital_limit:.2f}, position value: {shares * entry_price:.2f}, max allowed: {max_allowed_capital:.2f}")
                     
                     # Subtract cost of shares from capital (adjusted for leverage)
                     position_cost = (shares * entry_price) / leverage
@@ -220,14 +241,34 @@ class SimpleBacktester:
                     stop_loss = entry_price * (1 + stop_loss_pct)
                     take_profit = entry_price * (1 - take_profit_pct)
                     
-                    # Calculate position size while accounting for leverage
+                    # Calculate position size based on risk
                     price_distance = stop_loss - entry_price
-                    shares = risk_amount / (price_distance * leverage)
-                    
-                    # Apply maximum position size constraint if specified
-                    if max_position_size:
-                        max_shares = (capital * max_position_size) / entry_price
-                        shares = min(shares, max_shares)
+                    if price_distance <= 0: # Avoid division by zero or negative distance
+                         logger.warning(f"Price distance for SL is zero or negative ({price_distance}). Skipping trade.")
+                         position = 0; trade_active = False; continue
+                    shares_risk = risk_amount / (price_distance * leverage)
+
+                    # Calculate position size based on max capital allocation
+                    max_allowed_capital = capital * max_position_size
+                    shares_capital_limit = math.floor((max_allowed_capital / entry_price) * 100) / 100 # Round down
+
+                    # Determine initial shares based on minimum of risk and capital limits
+                    initial_shares = min(shares_risk, shares_capital_limit)
+                    shares = math.floor(initial_shares * 100) / 100 # Floor to 2 decimal places
+
+                    # Final check: If flooring still results in exceeding capital limit, adjust shares downward
+                    while (shares * entry_price) > (max_allowed_capital + 1e-9) and shares > 0.01: # Add tolerance and ensure shares > min unit
+                        shares = math.floor((shares - 0.01) * 100) / 100 # Decrement by smallest unit
+                        logger.warning(f"Adjusting shares down to {shares:.2f} to strictly meet capital limit due to flooring interaction.")
+
+                    # Ensure shares are non-zero and positive after applying constraints
+                    if shares <= 0:
+                        logger.warning(f"Calculated shares ({shares}) are zero or negative after constraints. Skipping trade.")
+                        position = 0 # Reset position as trade is skipped
+                        trade_active = False
+                        continue # Skip to next iteration
+                        
+                    logger.debug(f"Position sizing - shares: {shares}, shares_risk: {shares_risk:.2f}, shares_capital_limit: {shares_capital_limit:.2f}, position value: {shares * entry_price:.2f}, max allowed: {max_allowed_capital:.2f}")
                     
                     # Subtract margin requirement from capital (adjusted for leverage)
                     position_cost = (shares * entry_price) / leverage

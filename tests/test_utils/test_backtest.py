@@ -130,15 +130,19 @@ class TestBacktester:
         )
         
         # Verify position sizing constraints
-        if len(results_small['trades']) > 0:
-            max_position_small = results_small['trades']['shares'].max() * \
-                               results_small['trades']['entry_price'].max()
-            assert max_position_small <= 1000.0 * 0.1
-        
-        if len(results_large['trades']) > 0:
-            max_position_large = results_large['trades']['shares'].max() * \
-                               results_large['trades']['entry_price'].max()
-            assert max_position_large <= 1000.0 * 0.5
+        if not results_small['trades'].empty:
+            trades_df_small = results_small['trades']
+            trades_df_small['position_value'] = trades_df_small['shares'] * trades_df_small['entry_price']
+            max_position_value_small = trades_df_small['position_value'].max()
+            # Add a small tolerance (e.g., 1e-6) for floating point comparisons
+            assert max_position_value_small <= (1000.0 * 0.1) + 1e-6
+
+        if not results_large['trades'].empty:
+            trades_df_large = results_large['trades']
+            trades_df_large['position_value'] = trades_df_large['shares'] * trades_df_large['entry_price']
+            max_position_value_large = trades_df_large['position_value'].max()
+            # Add a small tolerance
+            assert max_position_value_large <= (1000.0 * 0.5) + 1e-6
 
     @pytest.mark.performance
     def test_backtest_performance(self, sample_ohlc_data, performance_metrics):
@@ -168,9 +172,22 @@ class TestBacktester:
     @pytest.mark.integration
     def test_backtest_with_ml_pipeline(self, sample_ohlc_data, mock_model, mock_scaler):
         """Test integration of ML pipeline with backtesting."""
-        from src.models.signal_model import generate_signals_for_dataset
-        
+        from src.models.signal_model import generate_signals_for_dataset, engineer_features # Import engineer_features
+
+        # Determine the expected length after feature engineering for mock setup
+        # IMPORTANT: Need to use the *same* sample_ohlc_data instance
+        data_copy = sample_ohlc_data.copy()
+        feature_df = engineer_features(data_copy) # Get the actual feature df
+        feature_df_len = len(feature_df)
+        if feature_df_len == 0:
+             pytest.skip("Not enough data after feature engineering for ML pipeline test")
+
+        # Setup mock predictions matching the length of the *actual* feature_df
+        # Use 0/1 for model output
+        mock_model.predict.return_value = np.random.choice([0, 1], size=feature_df_len)
+
         # Generate signals using ML model
+        # Pass the original data, the function internally calls engineer_features
         signals = generate_signals_for_dataset(mock_model, mock_scaler, sample_ohlc_data)
         
         # Run backtest with ML signals
