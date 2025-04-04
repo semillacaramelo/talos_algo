@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 import asyncio
 import pandas as pd
@@ -7,17 +8,20 @@ from src.api.deriv_api_handler import connect_deriv_api, disconnect
 from src.data.data_handler import get_historical_data
 from src.utils.backtest import SimpleBacktester
 from src.utils.logger import setup_logger
-from src.models.signal_model import train_or_load_model, engineer_features, generate_signals_for_dataset
+from src.models.signal_model import (
+    train_or_load_model,
+    engineer_features,
+    generate_signals_for_dataset,
+    FEATURE_COLUMNS
+)
 from config.settings import INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT
 
 # Set up logger
 logger = setup_logger()
 
 async def run_ml_backtest():
-    """
-    Run a backtest using our trained ML model with historical data from Deriv API.
-    """
-    logger.info("Starting ML model backtest...")
+    """Run a backtest using RandomForest model with historical data."""
+    logger.info("Starting RandomForest model backtest...")
     
     # Connect to API and get historical data
     api = await connect_deriv_api()
@@ -27,34 +31,34 @@ async def run_ml_backtest():
         
     try:
         # Fetch a larger dataset for meaningful backtest
-        backtest_bars = max(1000, HISTORICAL_BARS_COUNT * 2)  # Use at least 1000 bars for ML backtest
+        backtest_bars = max(1000, HISTORICAL_BARS_COUNT * 2)
         historical_df = await get_historical_data(api, INSTRUMENT, TIMEFRAME_SECONDS, backtest_bars)
         
         if historical_df.empty:
             logger.error("Failed to fetch historical data for backtest.")
             return
             
-        logger.info(f"Successfully fetched {len(historical_df)} historical data points for ML backtest.")
+        logger.info(f"Successfully fetched {len(historical_df)} historical data points for RandomForest backtest.")
         
         # Load trained model and scaler
         model, scaler = train_or_load_model()
         
         if model is None:
-            logger.error("Failed to load ML model. Cannot proceed with ML backtest.")
+            logger.error("Failed to load RandomForest model. Cannot proceed with backtest.")
             return
             
-        # Engineer features for the entire historical dataset
-        logger.info("Engineering features for ML backtesting...")
+        # Engineer features using enhanced feature set
+        logger.info("Engineering features with enhanced indicators...")
         feature_df = engineer_features(historical_df.copy())
         
         if len(feature_df) == 0:
             logger.error("Feature engineering resulted in empty dataset. Cannot proceed.")
             return
             
-        logger.info(f"Feature engineering generated {len(feature_df)} samples with features.")
+        logger.info(f"Feature engineering generated {len(feature_df)} samples with {len(FEATURE_COLUMNS)} features.")
         
         # Generate ML signals for the entire dataset
-        logger.info("Generating ML signals for the entire dataset...")
+        logger.info("Generating RandomForest signals for the entire dataset...")
         signals = generate_signals_for_dataset(model, scaler, historical_df)
         
         if len(signals) == 0:
@@ -62,70 +66,58 @@ async def run_ml_backtest():
             return
             
         # Initialize backtester
-        initial_capital = 1000  # Starting with $1000
+        initial_capital = 1000
         backtester = SimpleBacktester(initial_capital=initial_capital)
         
         # Run backtest with ML signals
         backtest_results = backtester.run_backtest(
-            historical_df=feature_df,  # Use the feature-engineered dataframe with same indices
-            signals=signals,           # Pass our ML-generated signals
-            risk_per_trade=0.02,       # Risk 2% per trade
-            stop_loss_pct=0.01,        # 1% stop loss
-            take_profit_pct=0.02,      # 2% take profit
-            max_position_size=0.25,    # Maximum 25% of capital in any trade
-            leverage=1                 # No leverage (1x) for safer backtesting
+            historical_df=feature_df,
+            signals=signals,
+            risk_per_trade=0.02,
+            stop_loss_pct=0.01,
+            take_profit_pct=0.02,
+            max_position_size=0.25,
+            leverage=1
         )
         
         if backtest_results:
-            # Display results
             metrics = backtest_results['metrics']
             trades_df = backtest_results['trades']
             equity_curve = backtest_results['equity_curve']
             
-            logger.info("--- Random Forest Backtest Summary ---")
+            logger.info("--- RandomForest Backtest Summary ---")
             logger.info(f"Initial Capital: ${metrics['initial_capital']:.2f}")
             logger.info(f"Final Capital: ${metrics['final_capital']:.2f}")
             logger.info(f"Total Return: {metrics['total_return_pct']:.2f}%")
             logger.info(f"Total Trades: {metrics['total_trades']}")
+            logger.info(f"Win Rate: {metrics['win_rate']*100:.2f}%")
             
-            if metrics['total_trades'] > 0:
-                logger.info(f"Win Rate: {metrics['win_rate']*100:.2f}%")
-                logger.info(f"Avg Win: ${metrics['avg_win']:.2f}")
-                logger.info(f"Avg Loss: ${metrics['avg_loss']:.2f}")
+            if len(trades_df) > 0:
+                trades_df.to_csv('random_forest_trades.csv')
+                logger.info("Saved trade history to random_forest_trades.csv")
                 
-                # Save trades to CSV
-                if not trades_df.empty:
-                    trades_df.to_csv("ml_rf_backtest_trades.csv", index=False)
-                    logger.info("Saved Random Forest trades to ml_rf_backtest_trades.csv")
-                
-                # Save backtest results
-                equity_curve.to_csv("ml_rf_backtest_equity_curve.csv", index=False)
-                logger.info("Saved Random Forest equity curve to ml_rf_backtest_equity_curve.csv")
-                
-                # Create and save a simple equity curve plot (if matplotlib is available)
                 try:
                     plt.figure(figsize=(12, 6))
-                    plt.plot(equity_curve['time'], equity_curve['capital'], label='Random Forest Equity Curve')
-                    plt.title(f'Random Forest Strategy Backtest - {INSTRUMENT}')
+                    plt.plot(equity_curve['time'], equity_curve['capital'], label='Portfolio Value')
+                    plt.title('RandomForest Trading Strategy Equity Curve')
                     plt.xlabel('Time')
-                    plt.ylabel('Capital ($)')
+                    plt.ylabel('Portfolio Value ($)')
                     plt.grid(True, alpha=0.3)
                     plt.legend()
                     plt.tight_layout()
-                    plt.savefig('ml_rf_backtest_equity_curve.png')
-                    logger.info("Saved Random Forest equity curve plot to ml_rf_backtest_equity_curve.png")
+                    plt.savefig('random_forest_equity_curve.png')
+                    logger.info("Saved RandomForest equity curve plot to random_forest_equity_curve.png")
                 except Exception as e:
                     logger.warning(f"Could not create equity curve plot: {e}")
         else:
-            logger.warning("ML backtest did not return any results.")
+            logger.warning("RandomForest backtest did not return any results.")
     
     except Exception as e:
-        logger.exception(f"Error during ML backtesting: {e}")
+        logger.exception(f"Error during RandomForest backtesting: {e}")
     
     finally:
-        # Disconnect from API
         await disconnect(api)
-        logger.info("ML Backtest completed.")
+        logger.info("RandomForest Backtest completed.")
 
 if __name__ == "__main__":
     asyncio.run(run_ml_backtest())
