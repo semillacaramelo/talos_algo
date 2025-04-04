@@ -54,6 +54,14 @@ async def run_ml_backtest():
         if len(feature_df) == 0:
             logger.error("Feature engineering resulted in empty dataset. Cannot proceed.")
             return
+        
+        # Log sample data and verify feature columns
+        logger.info("Feature data sample:")
+        logger.info(feature_df[FEATURE_COLUMNS].head())
+        
+        # Log null values to check data quality
+        logger.info("Null values in features:")
+        logger.info(feature_df[FEATURE_COLUMNS].isnull().sum())
             
         logger.info(f"Feature engineering generated {len(feature_df)} samples with {len(FEATURE_COLUMNS)} features.")
         

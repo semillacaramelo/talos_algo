@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report, accuracy_score
 import joblib
 
 from src.data.data_handler import get_historical_data
-from src.models.signal_model import engineer_features
+from src.models.signal_model import engineer_features, FEATURE_COLUMNS
 from src.utils.logger import setup_logger
 from config.settings import INSTRUMENT, TIMEFRAME_SECONDS
 
@@ -49,6 +49,14 @@ def prepare_features_and_target(df):
         if feature_df.empty:
             logger.error("Feature engineering resulted in empty DataFrame")
             return None, None
+        
+        # Log feature head to verify calculated features
+        logger.info("Feature data sample:")
+        logger.info(feature_df[FEATURE_COLUMNS].head())
+        
+        # Log null value counts to check for issues
+        logger.info("Null values in features:")
+        logger.info(feature_df[FEATURE_COLUMNS].isnull().sum())
             
         # Create target variable (next candle direction)
         # 1 for price increase, 0 for decrease or no change
@@ -57,9 +65,8 @@ def prepare_features_and_target(df):
         # Remove last row (has NaN target)
         feature_df = feature_df.iloc[:-1]
         
-        # Select features and target
-        X = feature_df[['price_change', 'ma_diff', 'rsi', 'atr', 
-                       'stoch_k', 'stoch_d', 'macd', 'macd_signal']]
+        # Select features and target using updated FEATURE_COLUMNS
+        X = feature_df[FEATURE_COLUMNS]
         y = feature_df['target']
         
         return X, y

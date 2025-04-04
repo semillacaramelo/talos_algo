@@ -3,11 +3,14 @@ import pandas as pd
 from joblib import load
 from typing import Tuple, Optional, List, Union
 import numpy as np
+import pandas_ta as ta
 
 # Features used by the model
 FEATURE_COLUMNS = [
     'price_change', 'ma_diff', 'rsi', 'atr', 
-    'stoch_k', 'stoch_d', 'macd', 'macd_signal'
+    'stoch_k', 'stoch_d', 'macd', 'macd_signal',
+    'STOCHk_14_3_3', 'STOCHd_14_3_3',
+    'MACD_12_26_9', 'MACDh_12_26_9', 'MACDs_12_26_9'
 ]
 
 def train_or_load_model(model_path: str = "", 
@@ -79,6 +82,13 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         df['macd'] = exp1 - exp2
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
 
+        # Add enhanced technical indicators using pandas_ta
+        # Stochastic Oscillator (standard 14,3,3 periods)
+        df.ta.stoch(k=14, d=3, append=True)
+        
+        # MACD (standard 12,26,9 periods)
+        df.ta.macd(fast=12, slow=26, signal=9, append=True)
+        
         # Drop rows with NaN values after calculations
         df = df.dropna()
 
