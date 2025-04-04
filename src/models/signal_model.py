@@ -16,7 +16,9 @@ FEATURE_COLUMNS = [
     'adx', 'adx_pos', 'adx_neg',
     'cci', 'mfi', 'obv_norm',
     'volatility', 'ema_diff', 
-    'wma_diff', 'ichimoku_diff'
+    'wma_diff', 'ichimoku_diff',
+    # New extended Ichimoku features
+    'cloud_strength', 'price_to_cloud'
 ]
 
 def train_or_load_model(model_path: str = "", 
@@ -117,12 +119,17 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         
         # New Feature #3: CCI (Commodity Channel Index)
         try:
-            cci = df.ta.cci(length=20)
-            if not cci.empty:
-                df['cci'] = cci[f'CCI_20']
-            else:
-                # Fallback calculation if pandas_ta fails
-                df['cci'] = 0  # Neutral value for CCI
+            # Manual calculation for CCI
+            tp = (df['high'] + df['low'] + df['close']) / 3  # Typical price
+            tp_sma = tp.rolling(window=20).mean()  # SMA of typical price
+            md = tp.rolling(window=20).apply(lambda x: pd.Series(x).mad())  # Mean deviation
+            # Handle zero mean deviation
+            df['cci'] = df.apply(
+                lambda x: (x['close'] - tp_sma.loc[x.name]) / (0.015 * md.loc[x.name]) if md.loc[x.name] > 0 else 0,
+                axis=1
+            )
+            # Normalize CCI for consistent scale with other features
+            df['cci'] = df['cci'] / 100
         except Exception as e:
             print(f"CCI calculation error: {e}")
             df['cci'] = 0  # Neutral value
@@ -172,17 +179,27 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         
         # New Feature #8: WMA (Weighted Moving Average) difference
         try:
-            wma_fast = df.ta.wma(length=10)
-            wma_slow = df.ta.wma(length=30)
-            if not wma_fast.empty and not wma_slow.empty:
-                df['wma_fast'] = wma_fast[f'WMA_10']
-                df['wma_slow'] = wma_slow[f'WMA_30']
-                df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
-            else:
-                # Fallback to SMA if WMA fails
-                df['wma_fast'] = df['close'].rolling(window=10).mean()
-                df['wma_slow'] = df['close'].rolling(window=30).mean()
-                df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
+            # Manual calculation of WMA
+            # Create weight series
+            fast_window = 10
+            slow_window = 30
+            
+            # Calculate weighted moving averages manually
+            # For fast WMA
+            weights_fast = np.arange(1, fast_window + 1)
+            df['wma_fast'] = df['close'].rolling(window=fast_window).apply(
+                lambda x: np.sum(weights_fast * x) / np.sum(weights_fast), raw=True
+            )
+            
+            # For slow WMA
+            weights_slow = np.arange(1, slow_window + 1)
+            df['wma_slow'] = df['close'].rolling(window=slow_window).apply(
+                lambda x: np.sum(weights_slow * x) / np.sum(weights_slow), raw=True
+            )
+            
+            # Calculate the difference
+            df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
+            
         except Exception as e:
             print(f"WMA calculation error: {e}")
             # Fallback to SMA if WMA fails
@@ -190,26 +207,48 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             df['wma_slow'] = df['close'].rolling(window=30).mean()
             df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
         
-        # New Feature #9: Ichimoku Cloud
+        # New Feature #9: Ichimoku Cloud - Manual calculation
         try:
-            ichimoku = df.ta.ichimoku()
-            if not ichimoku.empty and 'ITS_9' in ichimoku.columns and 'IKS_26' in ichimoku.columns:
-                # Extract key Ichimoku components
-                df['tenkan'] = ichimoku['ITS_9']  # Conversion line
-                df['kijun'] = ichimoku['IKS_26']  # Base line
-                # Calculate difference between conversion and base lines
-                df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
-            else:
-                # Fallback calculation
-                df['tenkan'] = df['close'].rolling(window=9).mean()
-                df['kijun'] = df['close'].rolling(window=26).mean()
-                df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
+            # Tenkan-sen (Conversion Line): (highest high + lowest low)/2 for the past 9 periods
+            high_9 = df['high'].rolling(window=9).max()
+            low_9 = df['low'].rolling(window=9).min()
+            df['tenkan'] = (high_9 + low_9) / 2
+            
+            # Kijun-sen (Base Line): (highest high + lowest low)/2 for the past 26 periods
+            high_26 = df['high'].rolling(window=26).max()
+            low_26 = df['low'].rolling(window=26).min()
+            df['kijun'] = (high_26 + low_26) / 2
+            
+            # Senkou Span A (Leading Span A): (Conversion Line + Base Line)/2 (26 periods ahead)
+            df['senkou_span_a'] = ((df['tenkan'] + df['kijun']) / 2)
+            
+            # Senkou Span B (Leading Span B): (highest high + lowest low)/2 for the past 52 periods (26 periods ahead)
+            high_52 = df['high'].rolling(window=52).max()
+            low_52 = df['low'].rolling(window=52).min()
+            df['senkou_span_b'] = ((high_52 + low_52) / 2)
+            
+            # Chikou Span (Lagging Span): Current closing price (26 periods behind)
+            # We don't calculate this as it won't be used for the feature
+            
+            # Calculate difference between Tenkan and Kijun as a feature
+            df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
+            
+            # Add additional Ichimoku-derived features
+            # Cloud strength
+            df['cloud_strength'] = (df['senkou_span_a'] - df['senkou_span_b']) / df['close']
+            
+            # Price relative to cloud
+            df['price_to_cloud'] = (df['close'] - (df['senkou_span_a'] + df['senkou_span_b'])/2) / df['close']
+            
         except Exception as e:
             print(f"Ichimoku calculation error: {e}")
             # Fallback calculation
             df['tenkan'] = df['close'].rolling(window=9).mean()
             df['kijun'] = df['close'].rolling(window=26).mean()
             df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
+            # Set additional features to neutral values
+            df['cloud_strength'] = 0
+            df['price_to_cloud'] = 0
         
         # Drop any rows with NaN values after all calculations
         df = df.dropna()

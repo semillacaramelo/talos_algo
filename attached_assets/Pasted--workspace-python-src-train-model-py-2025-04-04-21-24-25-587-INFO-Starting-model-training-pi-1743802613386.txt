@@ -1,0 +1,164 @@
+~/workspace$ python src/train_model.py 
+2025-04-04 21:24:25,587 - INFO - Starting model training pipeline...
+2025-04-04 21:24:25,632 - INFO - Connected to Deriv API with app ID: 1086
+2025-04-04 21:24:25,632 Connected to Deriv API with app ID: 1086
+2025-04-04 21:24:26,041 - INFO - Authorized with account: investsondvd@gmail.com
+2025-04-04 21:24:26,041 Authorized with account: investsondvd@gmail.com
+2025-04-04 21:24:26,042 - INFO - Fetching historical data chunk 1/2...
+2025-04-04 21:24:26,042 Fetching historical data chunk 1/2...
+2025-04-04 21:24:26,042 - INFO - Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:24:26,042 Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:24:28,188 - INFO - Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:24:28,188 Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:24:29,189 - INFO - Fetching historical data chunk 2/2...
+2025-04-04 21:24:29,189 Fetching historical data chunk 2/2...
+2025-04-04 21:24:29,189 - INFO - Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:24:29,189 Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:24:31,309 - INFO - Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:24:31,309 Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:24:31,367 - INFO - Disconnected from Deriv API
+2025-04-04 21:24:31,367 Disconnected from Deriv API
+2025-04-04 21:24:31,371 - INFO - Successfully fetched 5000 historical data points
+2025-04-04 21:24:31,371 Successfully fetched 5000 historical data points
+CCI calculation error: 'CCI_20'
+WMA calculation error: 'WMA_10'
+Ichimoku calculation error: 'tuple' object has no attribute 'empty'
+2025-04-04 21:24:31,637 - INFO - Feature data sample:
+2025-04-04 21:24:31,637 Feature data sample:
+2025-04-04 21:24:31,638 - INFO -     price_change   ma_diff        rsi  ...  ema_diff  wma_diff  ichimoku_diff
+50      0.000581 -0.000640  37.543615  ... -0.000114  0.000372       0.000539
+51      0.000054 -0.001057  41.387195  ... -0.000218  0.000357       0.000449
+52      0.001314 -0.001124  45.422285  ... -0.000191  0.000415       0.000105
+53     -0.000754 -0.001277  47.145488  ... -0.000229  0.000039      -0.000464
+54      0.000890 -0.001005  53.860500  ... -0.000184 -0.000347      -0.000680
+
+[5 rows x 25 columns]
+2025-04-04 21:24:31,638     price_change   ma_diff        rsi  ...  ema_diff  wma_diff  ichimoku_diff
+50      0.000581 -0.000640  37.543615  ... -0.000114  0.000372       0.000539
+51      0.000054 -0.001057  41.387195  ... -0.000218  0.000357       0.000449
+52      0.001314 -0.001124  45.422285  ... -0.000191  0.000415       0.000105
+53     -0.000754 -0.001277  47.145488  ... -0.000229  0.000039      -0.000464
+54      0.000890 -0.001005  53.860500  ... -0.000184 -0.000347      -0.000680
+
+[5 rows x 25 columns]
+2025-04-04 21:24:31,719 - INFO - Null values in features:
+2025-04-04 21:24:31,719 Null values in features:
+2025-04-04 21:24:31,721 - INFO - price_change       0
+ma_diff            0
+rsi                0
+atr                0
+stoch_k            0
+stoch_d            0
+macd               0
+macd_signal        0
+STOCHk_14_3_3      0
+STOCHd_14_3_3      0
+MACD_12_26_9       0
+MACDh_12_26_9      0
+MACDs_12_26_9      0
+bollinger_pct_b    0
+bollinger_width    0
+adx                0
+adx_pos            0
+adx_neg            0
+cci                0
+mfi                0
+obv_norm           0
+volatility         0
+ema_diff           0
+wma_diff           0
+ichimoku_diff      0
+dtype: int64
+2025-04-04 21:24:31,721 price_change       0
+ma_diff            0
+rsi                0
+atr                0
+stoch_k            0
+stoch_d            0
+macd               0
+macd_signal        0
+STOCHk_14_3_3      0
+STOCHd_14_3_3      0
+MACD_12_26_9       0
+MACDh_12_26_9      0
+MACDs_12_26_9      0
+bollinger_pct_b    0
+bollinger_width    0
+adx                0
+adx_pos            0
+adx_neg            0
+cci                0
+mfi                0
+obv_norm           0
+volatility         0
+ema_diff           0
+wma_diff           0
+ichimoku_diff      0
+dtype: int64
+/home/runner/workspace/src/train_model.py:100: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  feature_df['target'] = (feature_df['close'].shift(-1) > feature_df['close']).astype(int)
+2025-04-04 21:24:31,729 - INFO - Starting hyperparameter optimization with GridSearchCV...
+2025-04-04 21:24:31,729 Starting hyperparameter optimization with GridSearchCV...
+Fitting 3 folds for each of 16 candidates, totalling 48 fits
+2025-04-04 21:24:59,049 - INFO - Best parameters found: {'class_weight': None, 'max_depth': 20, 'min_samples_split': 2, 'n_estimators': 200}
+2025-04-04 21:24:59,049 Best parameters found: {'class_weight': None, 'max_depth': 20, 'min_samples_split': 2, 'n_estimators': 200}
+2025-04-04 21:24:59,124 - INFO - Model Accuracy: 0.5000
+2025-04-04 21:24:59,124 Model Accuracy: 0.5000
+2025-04-04 21:24:59,137 - INFO - 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.50      0.50      0.50       496
+           1       0.50      0.50      0.50       494
+
+    accuracy                           0.50       990
+   macro avg       0.50      0.50      0.50       990
+weighted avg       0.50      0.50      0.50       990
+
+2025-04-04 21:24:59,137 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.50      0.50      0.50       496
+           1       0.50      0.50      0.50       494
+
+    accuracy                           0.50       990
+   macro avg       0.50      0.50      0.50       990
+weighted avg       0.50      0.50      0.50       990
+
+2025-04-04 21:24:59,195 - INFO - 
+Feature Importances:
+                 importance
+volatility         0.050795
+price_change       0.048781
+obv_norm           0.047293
+atr                0.046884
+adx_pos            0.046491
+adx                0.045708
+adx_neg            0.044894
+ma_diff            0.043892
+stoch_k            0.042757
+bollinger_width    0.042728
+2025-04-04 21:24:59,195 
+Feature Importances:
+                 importance
+volatility         0.050795
+price_change       0.048781
+obv_norm           0.047293
+atr                0.046884
+adx_pos            0.046491
+adx                0.045708
+adx_neg            0.044894
+ma_diff            0.043892
+stoch_k            0.042757
+bollinger_width    0.042728
+2025-04-04 21:24:59,391 - INFO - Model saved to src/models/basic_predictor.joblib
+2025-04-04 21:24:59,391 Model saved to src/models/basic_predictor.joblib
+2025-04-04 21:24:59,391 - INFO - Scaler saved to src/models/scaler.joblib
+2025-04-04 21:24:59,391 Scaler saved to src/models/scaler.joblib
+2025-04-04 21:24:59,391 - INFO - Model training pipeline completed successfully
+2025-04-04 21:24:59,391 Model training pipeline completed successfully
