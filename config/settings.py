@@ -24,7 +24,7 @@ BASIS = 'stake'  # 'stake' or 'payout'
 CURRENCY = 'USD'  # Account currency
 
 # Risk Management
-MAX_CONCURRENT_TRADES = 1  # Maximum number of concurrent open trades
+MAX_CONCURRENT_TRADES = 3  # Maximum number of concurrent open trades
 DYNAMIC_STAKE_PERCENT = 0.005  # 0.5% of balance per trade
 MIN_STAKE_AMOUNT = 0.35  # Minimum stake amount allowed by Deriv
 MAX_STAKE_AMOUNT = 5.0  # Maximum stake per trade (self-imposed limit)

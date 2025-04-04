@@ -109,7 +109,10 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
             return None
 
         # Extract features for prediction
-        features = df[FEATURE_COLUMNS].iloc[-1:].values
+        features_df = df[FEATURE_COLUMNS].iloc[-1:]
+        
+        # Convert to numpy array without feature names to avoid warnings
+        features = features_df.values
 
         # Scale features
         if scaler:
@@ -146,7 +149,11 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
             print(f"Missing features: {missing_columns}")
             return result_signals
 
-        X = feature_df[FEATURE_COLUMNS]
+        # Get features as DataFrame first
+        X_df = feature_df[FEATURE_COLUMNS]
+        
+        # Convert to numpy array to avoid feature names warnings
+        X = X_df.values
 
         if scaler_obj:
             try:
