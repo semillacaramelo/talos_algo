@@ -163,3 +163,13 @@ pandas
 scikit-learn
 pandas-ta==0.3.14b
 websockets
+numpy==1.22.4
+pandas-ta==0.3.14b
+flask
+flask-sqlalchemy
+gunicorn
+joblib
+python-dotenv
+scikit-learn
+websockets==10.3
+numpy==1.24.0
