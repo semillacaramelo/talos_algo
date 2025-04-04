@@ -198,3 +198,4 @@ numpy
 pandas
 reactivex
 scikit-learn
+pandas-ta
