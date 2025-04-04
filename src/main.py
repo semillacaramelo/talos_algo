@@ -51,27 +51,33 @@ class TradingBot:
     async def _get_dynamic_stake(self) -> float:
         """Calculate dynamic stake based on account balance."""
         try:
+            # Use the configured STAKE_AMOUNT instead of calculating dynamically
+            # This ensures what's displayed in the UI matches what's actually used
+            print(f"Using configured stake amount: {STAKE_AMOUNT}")
+            return STAKE_AMOUNT
+            
+            # The following code is commented out to use fixed STAKE_AMOUNT
             # Access the underlying DerivAPI object
-            api = self.api.api
-            if not api:
-                print("API not initialized, using minimum stake")
-                return MIN_STAKE_AMOUNT
+            #api = self.api.api
+            #if not api:
+            #    print("API not initialized, using minimum stake")
+            #    return MIN_STAKE_AMOUNT
                 
             # Get balance using the official API
-            balance = await api.balance()
+            #balance = await api.balance()
             
             # Parse the balance response
-            if 'error' in balance:
-                print(f"Failed to get balance: {balance['error'].get('message', 'Unknown error')}")
-                return MIN_STAKE_AMOUNT
+            #if 'error' in balance:
+            #    print(f"Failed to get balance: {balance['error'].get('message', 'Unknown error')}")
+            #    return MIN_STAKE_AMOUNT
                 
             # Extract the balance value
-            account_balance = float(balance['balance']['balance'])
-            stake = account_balance * DYNAMIC_STAKE_PERCENT
-            return max(min(stake, MAX_STAKE_AMOUNT), MIN_STAKE_AMOUNT)
+            #account_balance = float(balance['balance']['balance'])
+            #stake = account_balance * DYNAMIC_STAKE_PERCENT
+            #return max(min(stake, MAX_STAKE_AMOUNT), MIN_STAKE_AMOUNT)
         except Exception as e:
             print(f"Error calculating stake: {e}")
-            return MIN_STAKE_AMOUNT
+            return STAKE_AMOUNT  # Return configured amount even on error
 
     async def _check_trading_limits(self) -> bool:
         """Check if trading should proceed based on risk limits."""
@@ -240,7 +246,32 @@ class TradingBot:
         
     async def stop(self):
         """Stop the trading bot."""
+        print("Stopping the trading bot...")
         self.is_running = False
+        
+        # Clean up the resources immediately rather than waiting
+        try:
+            # Clean up tick subscription
+            if hasattr(self, 'tick_subscription'):
+                self.tick_subscription.unsubscribe()
+                print("Unsubscribed from tick feed")
+            
+            # Clean up contract subscriptions
+            for contract_id, contract_data in list(self.active_contracts.items()):
+                if 'subscription' in contract_data:
+                    try:
+                        contract_data['subscription'].unsubscribe()
+                        print(f"Unsubscribed from contract {contract_id}")
+                    except Exception as e:
+                        print(f"Error unsubscribing from contract {contract_id}: {e}")
+            
+            # Disconnect from API
+            if hasattr(self, 'api') and self.api:
+                await self.api.disconnect()
+                print("API connection closed and cleaned up")
+        except Exception as e:
+            print(f"Error in cleanup during stop: {e}")
+            
         return True
         
     async def run(self):
