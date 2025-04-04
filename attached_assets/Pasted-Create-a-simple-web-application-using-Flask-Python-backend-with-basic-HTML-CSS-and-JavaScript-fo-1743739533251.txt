@@ -1,0 +1,36 @@
+Create a simple web application using Flask (Python backend) with basic HTML, CSS, and JavaScript for the frontend. This UI will be used to control and monitor an existing Python algorithmic trading bot (the bot code will be added later).
+
+**Required UI Elements:**
+
+1.  **Title:** "Trading Bot Control Panel"
+2.  **Status Display:** A text area or div (e.g., id="status-display") initially showing "Status: Idle".
+3.  **Control Buttons:**
+    *   A button labeled "Start Bot" (e.g., id="start-button").
+    *   A button labeled "Stop Bot" (e.g., id="stop-button").
+4.  **Configuration Display (Read-Only):** A section to display key parameters (these will be filled by the backend later). Include labels and placeholder divs/spans for:
+    *   Instrument (e.g., id="instrument-value")
+    *   Option Duration (e.g., id="duration-value")
+    *   Stake Amount (e.g., id="stake-value")
+5.  **Live State Display (Read-Only):** A section for live data (filled by backend later):
+    *   Account Balance (e.g., id="balance-value")
+    *   Active Trades Count (e.g., id="active-trades-value")
+6.  **Log Output:** A scrollable text area (e.g., id="log-output") to display bot logs.
+
+**Backend (Flask - app.py):**
+
+1.  Create a basic Flask app structure.
+2.  Create a main route `/` that renders an `index.html` template containing the UI elements.
+3.  Create **placeholder** backend routes that the buttons/JS can eventually call:
+    *   `/start_bot` (e.g., responds with `{"status": "Starting bot..."}`)
+    *   `/stop_bot` (e.g., responds with `{"status": "Stopping bot..."}`)
+    *   `/get_status` (e.g., responds with `{"status": "Idle", "balance": "N/A", "active_trades": 0, "config": {"instrument": "N/A", "duration": "N/A", "stake": "N/A"}}`)
+    *   `/get_logs` (e.g., responds with `{"logs": ["Bot initialized...", "Waiting for actions..."]}`)
+4.  Include basic `templates/index.html` and potentially `static/style.css`, `static/script.js`.
+
+**Frontend (JavaScript - script.js):**
+
+1.  Add simple event listeners to the "Start Bot" and "Stop Bot" buttons to fetch their respective backend routes (`/start_bot`, `/stop_bot`) and log the response status to the console.
+2.  Add basic JS to periodically fetch `/get_status` and update the corresponding display divs (Status, Balance, Active Trades, Config).
+3.  Add basic JS to periodically fetch `/get_logs` and append new logs to the `log-output` text area.
+
+**Goal:** Generate the essential file structure and frontend/backend boilerplate. The actual bot logic integration will happen later. Use standard Flask practices.
