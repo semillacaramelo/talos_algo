@@ -1,3 +1,4 @@
+
 import os
 import logging
 import asyncio
@@ -23,7 +24,7 @@ async def fetch_training_data():
         from src.api.deriv_api_handler import DerivAPIWrapper
         api = DerivAPIWrapper()
         await api.connect()
-
+        
         # Fetch 5000 bars of historical data
         historical_data = await get_historical_data(
             api=api.api,
@@ -31,10 +32,10 @@ async def fetch_training_data():
             granularity=TIMEFRAME_SECONDS,
             count=5000
         )
-
+        
         await api.disconnect()
         return historical_data
-
+        
     except Exception as e:
         logger.exception("Error fetching training data")
         return pd.DataFrame()
@@ -44,31 +45,25 @@ def prepare_features_and_target(df):
     try:
         # Engineer features using existing function
         feature_df = engineer_features(df.copy())
-
+        
         if feature_df.empty:
             logger.error("Feature engineering resulted in empty DataFrame")
             return None, None
-
+            
         # Create target variable (next candle direction)
         # 1 for price increase, 0 for decrease or no change
         feature_df['target'] = (feature_df['close'].shift(-1) > feature_df['close']).astype(int)
-
+        
         # Remove last row (has NaN target)
         feature_df = feature_df.iloc[:-1]
-
+        
         # Select features and target
         X = feature_df[['price_change', 'ma_diff', 'rsi', 'atr', 
-                       'stoch_k', 'stoch_d', 'macd', 'macd_signal']] #this line needs to be updated to include new features
+                       'stoch_k', 'stoch_d', 'macd', 'macd_signal']]
         y = feature_df['target']
-
-        # Verify features
-        print("\nFeature Head:")
-        print(feature_df[X.columns].head())
-        print("\nNull Values Check:")
-        print(feature_df[X.columns].isnull().sum())
-
+        
         return X, y
-
+        
     except Exception as e:
         logger.exception("Error preparing features and target")
         return None, None
@@ -80,12 +75,12 @@ def train_and_save_model(X, y):
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, shuffle=False
         )
-
+        
         # Scale features
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
-
+        
         # Initialize and train model
         model = RandomForestClassifier(
             n_estimators=100,
@@ -93,28 +88,28 @@ def train_and_save_model(X, y):
             class_weight='balanced',
             n_jobs=-1
         )
-
+        
         model.fit(X_train_scaled, y_train)
-
+        
         # Evaluate model
         y_pred = model.predict(X_test_scaled)
         accuracy = accuracy_score(y_test, y_pred)
         logger.info(f"Model Accuracy: {accuracy:.4f}")
         logger.info("\nClassification Report:\n" + 
                    classification_report(y_test, y_pred))
-
+        
         # Save model and scaler
         model_path = os.path.join('src', 'models', 'basic_predictor.joblib')
         scaler_path = os.path.join('src', 'models', 'scaler.joblib')
-
+        
         joblib.dump(model, model_path)
         joblib.dump(scaler, scaler_path)
-
+        
         logger.info(f"Model saved to {model_path}")
         logger.info(f"Scaler saved to {scaler_path}")
-
+        
         return True
-
+        
     except Exception as e:
         logger.exception("Error in model training pipeline")
         return False
@@ -122,19 +117,19 @@ def train_and_save_model(X, y):
 async def main():
     """Main training pipeline."""
     logger.info("Starting model training pipeline...")
-
+    
     # Fetch data
     df = await fetch_training_data()
     if df.empty:
         logger.error("Failed to fetch training data")
         return
-
+    
     # Prepare features and target
     X, y = prepare_features_and_target(df)
     if X is None or y is None:
         logger.error("Failed to prepare features and target")
         return
-
+    
     # Train and save model
     success = train_and_save_model(X, y)
     if success:
