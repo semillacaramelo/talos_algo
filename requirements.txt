@@ -185,3 +185,5 @@ numpy
 pandas
 scikit-learn
 websockets
+numpy==1.23.5
+pandas==1.5.3
