@@ -199,3 +199,4 @@ pandas
 reactivex
 scikit-learn
 pandas-ta
+pandas-ta

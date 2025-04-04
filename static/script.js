@@ -9,6 +9,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const modelSelect = document.getElementById('model-select');
     const switchAccountButton = document.getElementById('switch-account-type');
     const resetStatsButton = document.getElementById('reset-stats');
+    const switchThemeButton = document.getElementById('switch-theme');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    const htmlRoot = document.getElementById('html-root');
+    const bootstrapTheme = document.getElementById('bootstrap-theme');
+    const darkThemeCss = document.getElementById('theme-css');
+    const lightThemeCss = document.getElementById('light-theme-css');
+    
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    
+    // Apply saved theme on page load
+    if (savedTheme === 'light') {
+        applyLightTheme();
+    }
     
     // Configuration elements
     const instrumentValue = document.getElementById('instrument-value');
@@ -383,4 +398,60 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Periodic status updates
     setInterval(fetchStatus, 5000);  // Every 5 seconds
+    
+    // Theme switching functions
+    function applyLightTheme() {
+        // Update UI indicators
+        themeIcon.classList.remove('fa-sun');
+        themeIcon.classList.add('fa-moon');
+        themeText.textContent = 'Dark Theme';
+        
+        // Apply the light theme
+        htmlRoot.setAttribute('data-bs-theme', 'light');
+        bootstrapTheme.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
+        darkThemeCss.disabled = true;
+        lightThemeCss.disabled = false;
+        
+        // Save preference
+        localStorage.setItem('theme', 'light');
+    }
+    
+    function applyDarkTheme() {
+        // Update UI indicators
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+        themeText.textContent = 'Light Theme';
+        
+        // Apply the dark theme
+        htmlRoot.setAttribute('data-bs-theme', 'dark');
+        bootstrapTheme.href = 'https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css';
+        darkThemeCss.disabled = false;
+        lightThemeCss.disabled = true;
+        
+        // Save preference
+        localStorage.setItem('theme', 'dark');
+    }
+    
+    // Event listener for theme switch button
+    if (switchThemeButton) {
+        switchThemeButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Toggle between themes
+            if (localStorage.getItem('theme') === 'light') {
+                applyDarkTheme();
+            } else {
+                applyLightTheme();
+            }
+            
+            // Log the theme change
+            const currentTheme = localStorage.getItem('theme');
+            const logEntry = `[${new Date().toLocaleTimeString()}] INFO: Switched to ${currentTheme} theme`;
+            if (!existingLogs.has(logEntry)) {
+                existingLogs.add(logEntry);
+                logOutput.textContent += logEntry + '\n';
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+        });
+    }
 });

@@ -1,16 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="dark" id="html-root">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Algorithmic Trading Platform</title>
     <!-- Bootstrap CSS (Replit dark theme) -->
-    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" id="bootstrap-theme">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+    <!-- Dark Theme CSS (default) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" id="theme-css">
+    <!-- Light Theme CSS (loaded conditionally by JavaScript) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='light-theme.css') }}" disabled id="light-theme-css">
 <body>
     <!-- Top navigation bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -29,6 +30,11 @@
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsDropdown">
                         <li><a class="dropdown-item" href="#" id="switch-account-type">Switch to Real Account</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" id="switch-theme">
+                            <i class="fas fa-sun me-2" id="theme-icon"></i>
+                            <span id="theme-text">Light Theme</span>
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="#" id="reset-stats">Reset Statistics</a></li>
                     </ul>

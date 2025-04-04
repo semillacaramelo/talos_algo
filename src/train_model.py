@@ -25,16 +25,43 @@ async def fetch_training_data():
         api = DerivAPIWrapper()
         await api.connect()
         
-        # Fetch 5000 bars of historical data
-        historical_data = await get_historical_data(
-            api=api.api,
-            instrument=INSTRUMENT,
-            granularity=TIMEFRAME_SECONDS,
-            count=5000
-        )
+        # Fetch multiple chunks of historical data to get more data than the API limit allows in a single request
+        total_data_chunks = []
+        
+        # Fetch 10000 bars in total (2 chunks of 5000 bars each)
+        for i in range(2):
+            logger.info(f"Fetching historical data chunk {i+1}/2...")
+            
+            # Fetch 5000 bars of historical data
+            chunk_data = await get_historical_data(
+                api=api.api,
+                instrument=INSTRUMENT,
+                granularity=TIMEFRAME_SECONDS,
+                count=5000
+            )
+            
+            if not chunk_data.empty:
+                total_data_chunks.append(chunk_data)
+                
+                # If we need to fetch more, use the earliest timestamp as reference for next fetch
+                if i < 1 and not chunk_data.empty:
+                    # Sleep briefly to avoid API rate limits
+                    await asyncio.sleep(1)
         
         await api.disconnect()
-        return historical_data
+        
+        # Combine all data chunks
+        if total_data_chunks:
+            # Concatenate all chunks and sort by time
+            all_data = pd.concat(total_data_chunks)
+            all_data = all_data.drop_duplicates(subset=['time'])
+            all_data = all_data.sort_values(by='time')
+            
+            logger.info(f"Successfully fetched {len(all_data)} historical data points")
+            return all_data
+        else:
+            logger.error("Failed to fetch any historical data chunks")
+            return pd.DataFrame()
         
     except Exception as e:
         logger.exception("Error fetching training data")
@@ -88,28 +115,60 @@ def train_and_save_model(X, y):
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
         
-        # Initialize and train model
-        model = RandomForestClassifier(
-            n_estimators=100,
-            random_state=42,
-            class_weight='balanced',
-            n_jobs=-1
+        # Find the best hyperparameters for model
+        from sklearn.model_selection import GridSearchCV
+        
+        # Initialize a base RandomForest model
+        base_model = RandomForestClassifier(random_state=42, n_jobs=-1)
+        
+        # Define hyperparameters to search
+        param_grid = {
+            'n_estimators': [100, 200, 300],
+            'max_depth': [None, 10, 20, 30],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 4],
+            'class_weight': ['balanced', 'balanced_subsample', None]
+        }
+        
+        # Initialize GridSearchCV
+        grid_search = GridSearchCV(
+            estimator=base_model,
+            param_grid=param_grid, 
+            cv=3,  # 3-fold cross-validation
+            scoring='accuracy',
+            n_jobs=-1,  # Use all available cores
+            verbose=1
         )
         
-        model.fit(X_train_scaled, y_train)
+        # Fit the grid search to find best parameters
+        logger.info("Starting hyperparameter optimization with GridSearchCV...")
+        grid_search.fit(X_train_scaled, y_train)
         
-        # Evaluate model
-        y_pred = model.predict(X_test_scaled)
+        # Get best model
+        best_model = grid_search.best_estimator_
+        logger.info(f"Best parameters found: {grid_search.best_params_}")
+        
+        # Evaluate model on test set
+        y_pred = best_model.predict(X_test_scaled)
         accuracy = accuracy_score(y_test, y_pred)
         logger.info(f"Model Accuracy: {accuracy:.4f}")
         logger.info("\nClassification Report:\n" + 
                    classification_report(y_test, y_pred))
         
+        # Feature importance
+        feature_importances = pd.DataFrame(
+            best_model.feature_importances_,
+            index=X.columns,
+            columns=['importance']
+        ).sort_values('importance', ascending=False)
+        
+        logger.info("\nFeature Importances:\n" + str(feature_importances.head(10)))
+        
         # Save model and scaler
         model_path = os.path.join('src', 'models', 'basic_predictor.joblib')
         scaler_path = os.path.join('src', 'models', 'scaler.joblib')
         
-        joblib.dump(model, model_path)
+        joblib.dump(best_model, model_path)
         joblib.dump(scaler, scaler_path)
         
         logger.info(f"Model saved to {model_path}")
