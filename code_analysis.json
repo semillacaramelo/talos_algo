@@ -1,9 +1,899 @@
 {
-  "files": {},
+  "files": {
+    "/home/runner/workspace/.gitignore": {
+      "imports": [],
+      "size": 665,
+      "lines": 82,
+      "type": ""
+    },
+    "/home/runner/workspace/.gitkeep": {
+      "imports": [],
+      "size": 301,
+      "lines": 17,
+      "type": ""
+    },
+    "/home/runner/workspace/README.md": {
+      "imports": [],
+      "size": 2374,
+      "lines": 74,
+      "type": ".md"
+    },
+    "/home/runner/workspace/pytest.ini": {
+      "imports": [],
+      "size": 630,
+      "lines": 18,
+      "type": ".ini"
+    },
+    "/home/runner/workspace/setup.cfg": {
+      "imports": [],
+      "size": 815,
+      "lines": 35,
+      "type": ".cfg"
+    },
+    "/home/runner/workspace/setup.py": {
+      "imports": [
+        "from setuptools import setup, find_packages"
+      ],
+      "size": 241,
+      "lines": 10,
+      "type": ".py"
+    },
+    "/home/runner/workspace/talos_algo.py": {
+      "imports": [
+        "import asyncio",
+        "from src.main import main"
+      ],
+      "size": 194,
+      "lines": 9,
+      "type": ".py"
+    },
+    "/home/runner/workspace/pyproject.toml": {
+      "imports": [],
+      "size": 280,
+      "lines": 12,
+      "type": ".toml"
+    },
+    "/home/runner/workspace/replit.nix": {
+      "imports": [],
+      "size": 660,
+      "lines": 39,
+      "type": ".nix"
+    },
+    "/home/runner/workspace/uv.lock": {
+      "imports": [],
+      "size": 49731,
+      "lines": 346,
+      "type": ".lock"
+    },
+    "/home/runner/workspace/requirements.txt": {
+      "imports": [],
+      "size": 3308,
+      "lines": 200,
+      "type": ".txt"
+    },
+    "/home/runner/workspace/.replit": {
+      "imports": [],
+      "size": 1099,
+      "lines": 57,
+      "type": ""
+    },
+    "/home/runner/workspace/main.py": {
+      "imports": [
+        "from app import app"
+      ],
+      "size": 99,
+      "lines": 4,
+      "type": ".py"
+    },
+    "/home/runner/workspace/generate_model.py": {
+      "imports": [
+        "from src.models.dummy_model import create_dummy_model"
+      ],
+      "size": 453,
+      "lines": 12,
+      "type": ".py"
+    },
+    "/home/runner/workspace/app.py": {
+      "imports": [
+        "import os",
+        "import logging",
+        "import asyncio",
+        "import json",
+        "import time",
+        "from functools import wraps",
+        "from flask import Flask, render_template, jsonify, Response",
+        "from src.utils.logger import get_recent_logs, setup_logger",
+        "from src.main import TradingBot",
+        "from config.settings import INSTRUMENT, TIMEFRAME_SECONDS, OPTION_DURATION, OPTION_DURATION_UNIT, STAKE_AMOUNT, CURRENCY",
+        "import threading"
+      ],
+      "size": 4416,
+      "lines": 141,
+      "type": ".py"
+    },
+    "/home/runner/workspace/code_analysis.json": {
+      "imports": [],
+      "size": 14956,
+      "lines": 569,
+      "type": ".json"
+    },
+    "/home/runner/workspace/config/secrets.env": {
+      "imports": [],
+      "size": 40,
+      "lines": 1,
+      "type": ".env"
+    },
+    "/home/runner/workspace/config/settings.py": {
+      "imports": [
+        "import os"
+      ],
+      "size": 1341,
+      "lines": 32,
+      "type": ".py"
+    },
+    "/home/runner/workspace/docs/API_Documentation.md": {
+      "imports": [],
+      "size": 0,
+      "lines": 0,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/Rapid_Deployment_Project_Plan.md": {
+      "imports": [],
+      "size": 2147,
+      "lines": 16,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/System_Development_Instructions.md": {
+      "imports": [],
+      "size": 9334,
+      "lines": 108,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/findings_0.md": {
+      "imports": [],
+      "size": 18110,
+      "lines": 615,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/project_proposal.md": {
+      "imports": [],
+      "size": 8072,
+      "lines": 118,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/current_status.md": {
+      "imports": [],
+      "size": 3493,
+      "lines": 47,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/deriv_api_docs/deriv_api_documentation.md": {
+      "imports": [],
+      "size": 183821,
+      "lines": 4693,
+      "type": ".md"
+    },
+    "/home/runner/workspace/docs/deriv_api_docs/developers_deriv_documentation.md": {
+      "imports": [],
+      "size": 579133,
+      "lines": 16656,
+      "type": ".md"
+    },
+    "/home/runner/workspace/src/__init__.py": {
+      "imports": [],
+      "size": 0,
+      "lines": 0,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/backtest_strategy.py": {
+      "imports": [
+        "import asyncio",
+        "import pandas",
+        "import matplotlib.pyplot",
+        "from src.api.deriv_api_handler import connect_deriv_api, disconnect",
+        "from src.data.data_handler import get_historical_data",
+        "from src.utils.backtest import SimpleBacktester",
+        "from src.utils.logger import setup_logger",
+        "from config.settings import INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT",
+        "from src.models.signal_model import SHORT_MA_PERIOD, LONG_MA_PERIOD"
+      ],
+      "size": 4538,
+      "lines": 102,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/backtest_ml_model.py": {
+      "imports": [
+        "import asyncio",
+        "import pandas",
+        "import numpy",
+        "import matplotlib.pyplot",
+        "from src.api.deriv_api_handler import connect_deriv_api, disconnect",
+        "from src.data.data_handler import get_historical_data",
+        "from src.utils.backtest import SimpleBacktester",
+        "from src.utils.logger import setup_logger",
+        "from src.models.signal_model import train_or_load_model, engineer_features, generate_signals_for_dataset, FEATURE_COLUMNS",
+        "from config.settings import INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT"
+      ],
+      "size": 4972,
+      "lines": 123,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/train_model.py": {
+      "imports": [
+        "import os",
+        "import logging",
+        "import asyncio",
+        "import pandas",
+        "import numpy",
+        "from sklearn.model_selection import train_test_split",
+        "from sklearn.preprocessing import StandardScaler",
+        "from sklearn.ensemble import RandomForestClassifier",
+        "from sklearn.metrics import classification_report, accuracy_score",
+        "import joblib",
+        "from src.data.data_handler import get_historical_data",
+        "from src.models.signal_model import engineer_features",
+        "from src.utils.logger import setup_logger",
+        "from config.settings import INSTRUMENT, TIMEFRAME_SECONDS",
+        "from src.api.deriv_api_handler import DerivAPIWrapper"
+      ],
+      "size": 4531,
+      "lines": 141,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/main.py": {
+      "imports": [
+        "import sys",
+        "import os",
+        "import asyncio",
+        "from collections import deque",
+        "from datetime import datetime",
+        "import pandas",
+        "from typing import Dict, Optional, Any, Tuple, List",
+        "from src.api.deriv_api_handler import DerivAPIWrapper",
+        "from src.models.signal_model import train_or_load_model, generate_signal",
+        "from config.settings import OPTION_DURATION, OPTION_DURATION_UNIT, BASIS, CURRENCY, MAX_CONCURRENT_TRADES, DYNAMIC_STAKE_PERCENT, MIN_STAKE_AMOUNT, MAX_STAKE_AMOUNT, MAX_DAILY_LOSS",
+        "from config.settings import API_TOKEN",
+        "from config.settings import MAX_DAILY_LOSS, MAX_CONCURRENT_TRADES",
+        "from config.settings import STAKE_AMOUNT, MIN_STAKE_AMOUNT, MAX_STAKE_AMOUNT, DYNAMIC_STAKE_PERCENT",
+        "from config.settings import INSTRUMENT, OPTION_DURATION, OPTION_DURATION_UNIT, BASIS, CURRENCY",
+        "from config.settings import INSTRUMENT",
+        "from src.utils.logger import setup_logger",
+        "from config.settings import INSTRUMENT",
+        "from src.models.dummy_model import create_dummy_model",
+        "from config.settings import STAKE_AMOUNT"
+      ],
+      "size": 16498,
+      "lines": 382,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/api/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/api/deriv_api_handler.py": {
+      "imports": [
+        "import asyncio",
+        "import json",
+        "from config.settings import API_TOKEN, APP_ID",
+        "from src.utils.logger import setup_logger",
+        "from deriv_api import DerivAPI"
+      ],
+      "size": 8548,
+      "lines": 219,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/data/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/data/data_handler.py": {
+      "imports": [
+        "import asyncio",
+        "import pandas",
+        "import inspect",
+        "from config.settings import INSTRUMENT, TIMEFRAME_SECONDS, HISTORICAL_BARS_COUNT",
+        "from src.utils.logger import setup_logger",
+        "from src.main import handle_tick"
+      ],
+      "size": 5552,
+      "lines": 145,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/models/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/models/dummy_model.py": {
+      "imports": [
+        "import numpy",
+        "import pandas",
+        "import joblib",
+        "import os",
+        "from sklearn.ensemble import RandomForestClassifier",
+        "from sklearn.preprocessing import StandardScaler"
+      ],
+      "size": 1651,
+      "lines": 46,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/models/signal_model.py": {
+      "imports": [
+        "import os",
+        "import pandas",
+        "from joblib import load",
+        "from typing import Tuple, Optional, List, Union",
+        "import numpy",
+        "from src.models.dummy_model import create_dummy_model"
+      ],
+      "size": 5593,
+      "lines": 158,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/trading/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/trading/trading_logic.py": {
+      "imports": [
+        "import logging",
+        "import asyncio",
+        "from typing import Dict, Optional, Union, Any"
+      ],
+      "size": 5204,
+      "lines": 155,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/utils/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/utils/backtest.py": {
+      "imports": [
+        "import pandas",
+        "import numpy",
+        "import math",
+        "from src.models.signal_model import SHORT_MA_PERIOD, LONG_MA_PERIOD",
+        "from src.utils.logger import setup_logger"
+      ],
+      "size": 18085,
+      "lines": 347,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/utils/logger.py": {
+      "imports": [
+        "import logging",
+        "import os",
+        "from collections import deque",
+        "from datetime import datetime"
+      ],
+      "size": 1759,
+      "lines": 62,
+      "type": ".py"
+    },
+    "/home/runner/workspace/src/utils/code_analysis.json": {
+      "imports": [],
+      "size": 5032,
+      "lines": 219,
+      "type": ".json"
+    },
+    "/home/runner/workspace/src/utils/analyze_codebase.py": {
+      "imports": [
+        "import os",
+        "import json",
+        "import ast",
+        "import sys",
+        "import re",
+        "import pkg_resources",
+        "from typing import Dict, List, Any, Set, Tuple",
+        "import pkgutil",
+        "import pkgutil"
+      ],
+      "size": 14782,
+      "lines": 353,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/conftest.py": {
+      "imports": [
+        "import pytest",
+        "import pandas",
+        "import numpy",
+        "from unittest.mock import AsyncMock, MagicMock",
+        "import asyncio",
+        "from datetime import datetime, timedelta"
+      ],
+      "size": 3654,
+      "lines": 119,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_api_wrapper.py": {
+      "imports": [],
+      "size": 0,
+      "lines": 0,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_data_handler.py": {
+      "imports": [],
+      "size": 0,
+      "lines": 0,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_signal_generator.py": {
+      "imports": [],
+      "size": 0,
+      "lines": 0,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_trading_logic.py": {
+      "imports": [],
+      "size": 0,
+      "lines": 0,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_api/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_api/test_deriv_api.py": {
+      "imports": [
+        "import pytest",
+        "import asyncio",
+        "from unittest.mock import AsyncMock, patch",
+        "from src.api.deriv_api_handler import connect_deriv_api, disconnect, get_option_proposal, buy_option_contract"
+      ],
+      "size": 4610,
+      "lines": 133,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_data/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_data/test_data_handler.py": {
+      "imports": [
+        "import pytest",
+        "import pandas",
+        "import numpy",
+        "from unittest.mock import AsyncMock, patch, MagicMock",
+        "from src.data.data_handler import get_historical_data, subscribe_to_ticks",
+        "from datetime import datetime, timedelta"
+      ],
+      "size": 5784,
+      "lines": 139,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_models/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_models/test_signal_model.py": {
+      "imports": [
+        "import pytest",
+        "import pandas",
+        "import numpy",
+        "from unittest.mock import patch, MagicMock",
+        "from src.models.signal_model import engineer_features, train_or_load_model, generate_signal, generate_signals_for_dataset, FEATURE_COLUMNS, BUY, SELL, HOLD",
+        "from collections import deque",
+        "import time"
+      ],
+      "size": 6363,
+      "lines": 155,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_trading/__init__.py": {
+      "imports": [],
+      "size": 33,
+      "lines": 1,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_trading/test_trading_logic.py": {
+      "imports": [
+        "import pytest",
+        "import pandas",
+        "import numpy",
+        "from unittest.mock import AsyncMock, patch, MagicMock",
+        "from collections import deque",
+        "from src.trading.trading_logic import execute_trade, validate_signal, calculate_position_size",
+        "from src.models.signal_model import generate_signal",
+        "from datetime import datetime",
+        "import time"
+      ],
+      "size": 8759,
+      "lines": 260,
+      "type": ".py"
+    },
+    "/home/runner/workspace/tests/test_utils/test_backtest.py": {
+      "imports": [
+        "import pytest",
+        "import pandas",
+        "import numpy",
+        "from src.utils.backtest import SimpleBacktester",
+        "import time",
+        "from src.models.signal_model import generate_signals_for_dataset, engineer_features"
+      ],
+      "size": 8245,
+      "lines": 211,
+      "type": ".py"
+    },
+    "/home/runner/workspace/static/style.css": {
+      "imports": [],
+      "size": 1299,
+      "lines": 79,
+      "type": ".css"
+    },
+    "/home/runner/workspace/static/script.js": {
+      "imports": [],
+      "size": 4879,
+      "lines": 136,
+      "type": ".js"
+    },
+    "/home/runner/workspace/templates/index.html": {
+      "imports": [],
+      "size": 4751,
+      "lines": 103,
+      "type": ".html"
+    },
+    "/home/runner/workspace/logs/bot.log": {
+      "imports": [],
+      "size": 4082,
+      "lines": 60,
+      "type": ".log"
+    }
+  },
   "summary": {
-    "total_files": 0,
-    "total_size": 0,
+    "total_files": 63,
+    "total_size": 1035181,
     "languages": {},
-    "file_types": {}
+    "file_types": {
+      "": 3,
+      ".md": 9,
+      ".ini": 1,
+      ".cfg": 1,
+      ".py": 38,
+      ".toml": 1,
+      ".nix": 1,
+      ".lock": 1,
+      ".txt": 1,
+      ".json": 2,
+      ".env": 1,
+      ".css": 1,
+      ".js": 1,
+      ".html": 1,
+      ".log": 1
+    }
+  },
+  "dependencies": {
+    "used_packages": [
+      "config",
+      "matplotlib",
+      "pandas",
+      "pytest",
+      "joblib",
+      "sklearn",
+      "flask",
+      "pkg_resources",
+      "src",
+      "numpy",
+      "deriv_api",
+      "app",
+      "setuptools"
+    ],
+    "installed_packages": {
+      "pip": "24.0",
+      "pytest": "8.1.1",
+      "iniconfig": "2.0.0",
+      "packaging": "24.0",
+      "pluggy": "1.4.0",
+      "markupsafe": "3.0.2",
+      "rx": "3.2.0",
+      "aiohappyeyeballs": "2.6.1",
+      "aiohttp": "3.11.16",
+      "aiosignal": "1.3.2",
+      "attrs": "25.3.0",
+      "blinker": "1.9.0",
+      "certifi": "2025.1.31",
+      "charset-normalizer": "3.4.1",
+      "click": "8.1.8",
+      "contourpy": "1.3.1",
+      "cycler": "0.12.1",
+      "dnspython": "2.7.0",
+      "email-validator": "2.2.0",
+      "flask": "3.1.0",
+      "flask-sqlalchemy": "3.1.1",
+      "fonttools": "4.57.0",
+      "frozenlist": "1.5.0",
+      "greenlet": "3.1.1",
+      "gunicorn": "23.0.0",
+      "idna": "3.10",
+      "itsdangerous": "2.2.0",
+      "jinja2": "3.1.6",
+      "joblib": "1.4.2",
+      "kiwisolver": "1.4.8",
+      "matplotlib": "3.10.1",
+      "multidict": "6.3.2",
+      "numpy": "1.23.5",
+      "openai": "0.28.0",
+      "pandas": "1.5.3",
+      "pandas-ta": "0.3.14b0",
+      "pillow": "11.1.0",
+      "propcache": "0.3.1",
+      "psycopg2-binary": "2.9.10",
+      "pyparsing": "3.2.3",
+      "python-dateutil": "2.9.0.post0",
+      "python-deriv-api": "0.1.7",
+      "python-dotenv": "1.1.0",
+      "pytz": "2025.2",
+      "reactivex": "4.0.4",
+      "repl-nix-workspace": "0.1.0",
+      "requests": "2.32.3",
+      "sci-learn": "0.1.4",
+      "scikit-learn": "1.6.1",
+      "scipy": "1.15.2",
+      "six": "1.17.0",
+      "sqlalchemy": "2.0.40",
+      "threadpoolctl": "3.6.0",
+      "tqdm": "4.67.1",
+      "typing-extensions": "4.13.1",
+      "tzdata": "2025.2",
+      "urllib3": "2.3.0",
+      "websockets": "10.3",
+      "werkzeug": "3.1.3",
+      "yarl": "1.18.3",
+      "setuptools": "75.1.1.post0",
+      "autocommand": "2.2.2",
+      "backports.tarfile": "1.2.0",
+      "importlib-metadata": "8.0.0",
+      "importlib-resources": "6.4.0",
+      "inflect": "7.3.1",
+      "jaraco.collections": "5.1.0",
+      "jaraco.context": "5.3.0",
+      "jaraco.functools": "4.0.1",
+      "jaraco.text": "3.12.1",
+      "more-itertools": "10.3.0",
+      "platformdirs": "4.2.2",
+      "tomli": "2.0.1",
+      "typeguard": "4.3.0",
+      "wheel": "0.43.0",
+      "zipp": "3.19.2"
+    },
+    "required_packages": {
+      "anyio": "==4.9.0",
+      "argon2-cffi": "==23.1.0",
+      "argon2-cffi-bindings": "==21.2.0",
+      "arrow": "==1.3.0",
+      "asttokens": "==3.0.0",
+      "async-lru": "==2.0.5",
+      "attrs": "==25.3.0",
+      "babel": "==2.17.0",
+      "beautifulsoup4": "==4.13.3",
+      "bleach": "==6.2.0",
+      "bs4": "==0.0.2",
+      "certifi": "==2025.1.31",
+      "cffi": "==1.17.1",
+      "charset-normalizer": "==3.4.1",
+      "colorama": "==0.4.6",
+      "comm": "==0.2.2",
+      "contourpy": "==1.3.1",
+      "cycler": "==0.12.1",
+      "debugpy": "==1.8.13",
+      "decorator": "==5.2.1",
+      "defusedxml": "==0.7.1",
+      "executing": "==2.2.0",
+      "fastjsonschema": "==2.21.1",
+      "filelock": "==3.13.1",
+      "fonttools": "==4.56.0",
+      "fqdn": "==1.5.1",
+      "fsspec": "==2024.6.1",
+      "gitdb": "==4.0.12",
+      "GitPython": "==3.1.44",
+      "h11": "==0.14.0",
+      "httpcore": "==1.0.7",
+      "httpx": "==0.28.1",
+      "idna": "==3.10",
+      "ipykernel": "==6.29.5",
+      "ipython": "==9.0.2",
+      "ipython_pygments_lexers": "==1.1.1",
+      "isoduration": "==20.11.0",
+      "jedi": "==0.19.2",
+      "Jinja2": "==3.1.6",
+      "joblib": "",
+      "json5": "==0.10.0",
+      "jsonpointer": "==3.0.0",
+      "jsonschema": "==4.23.0",
+      "jsonschema-specifications": "==2024.10.1",
+      "jupyter-events": "==0.12.0",
+      "jupyter-lsp": "==2.2.5",
+      "jupyter-server-mathjax": "==0.2.6",
+      "jupyter_client": "==8.6.3",
+      "jupyter_core": "==5.7.2",
+      "jupyter_server": "==2.15.0",
+      "jupyter_server_terminals": "==0.5.3",
+      "jupyterlab": "==4.3.6",
+      "jupyterlab_git": "==0.51.0",
+      "jupyterlab_pygments": "==0.3.0",
+      "jupyterlab_server": "==2.27.3",
+      "kiwisolver": "==1.4.8",
+      "Markdown": "==3.7",
+      "MarkupSafe": "==3.0.2",
+      "matplotlib": "==3.10.1",
+      "matplotlib-inline": "==0.1.7",
+      "mistune": "==3.1.2",
+      "mpmath": "==1.3.0",
+      "narwhals": "==1.31.0",
+      "nbclient": "==0.10.2",
+      "nbconvert": "==7.16.6",
+      "nbdime": "==4.0.2",
+      "nbformat": "==5.10.4",
+      "nest-asyncio": "==1.6.0",
+      "networkx": "==3.3",
+      "notebook_shim": "==0.2.4",
+      "numpy": "",
+      "outcome": "==1.3.0.post0",
+      "overrides": "==7.7.0",
+      "packaging": "==24.2",
+      "pandas": "",
+      "pandocfilters": "==1.5.1",
+      "parso": "==0.8.4",
+      "pathlib": "==1.0.1",
+      "pexpect": "==4.9.0",
+      "pillow": "==11.1.0",
+      "platformdirs": "==4.3.6",
+      "plotly": "==6.0.1",
+      "prometheus_client": "==0.21.1",
+      "prompt_toolkit": "==3.0.50",
+      "psutil": "==7.0.0",
+      "ptyprocess": "==0.7.0",
+      "pure_eval": "==0.2.3",
+      "pycparser": "==2.22",
+      "Pygments": "==2.19.1",
+      "pyparsing": "==3.2.1",
+      "PySocks": "==1.7.1",
+      "python-dateutil": "==2.9.0.post0",
+      "python-dotenv": "",
+      "python-json-logger": "==3.3.0",
+      "python_deriv_api": "",
+      "pytz": "==2025.1",
+      "PyYAML": "==6.0.2",
+      "pyzmq": "==26.3.0",
+      "reactivex": "",
+      "referencing": "==0.36.2",
+      "requests": "==2.32.3",
+      "rfc3339-validator": "==0.1.4",
+      "rfc3986-validator": "==0.1.1",
+      "rpds-py": "==0.23.1",
+      "scikit-learn": "",
+      "scipy": ">=1.11.0",
+      "seaborn": ">=0.13.0",
+      "selenium": ">=4.14.0",
+      "setuptools": ">=68.0.0",
+      "six": ">=1.16.0",
+      "smmap": ">=5.0.0",
+      "sniffio": ">=1.3.0",
+      "sortedcontainers": ">=2.4.0",
+      "soupsieve": ">=2.4.0",
+      "stack-data": ">=0.6.2",
+      "sympy": ">=1.12.0",
+      "terminado": ">=0.17.1",
+      "threadpoolctl": ">=3.2.0",
+      "tinycss2": ">=1.2.1",
+      "torch": ">=2.1.0",
+      "tornado": ">=6.3.3",
+      "traitlets": "==5.14.3",
+      "trio": "==0.29.0",
+      "trio-websocket": "==0.12.2",
+      "types-python-dateutil": "==2.9.0.20241206",
+      "typing_extensions": "==4.12.2",
+      "tzdata": "==2025.1",
+      "uri-template": "==1.3.0",
+      "urllib3": "==2.3.0",
+      "wcwidth": "==0.2.13",
+      "webcolors": "==24.11.1",
+      "webdriver-manager": "==4.0.2",
+      "webencodings": "==0.5.1",
+      "websocket-client": "==1.8.0",
+      "websockets": "",
+      "wsproto": "==1.2.0",
+      "pandas-ta": "",
+      "pytest": ">=8.0.0",
+      "pytest-asyncio": ">=0.21.0",
+      "pytest-xdist": ">=3.3.0",
+      "pytest-cov": ">=4.1.0",
+      "pytest-benchmark": ">=4.0.0",
+      "pytest-mock": ">=3.10.0",
+      "pytest-timeout": ">=2.1.0",
+      "coverage": ">=7.4.0",
+      "flask": "",
+      "gunicorn": "",
+      "pandas_ta": "",
+      "flask-sqlalchemy": "",
+      "rx": ""
+    },
+    "missing_packages": [
+      "sklearn",
+      "pkg_resources",
+      "deriv_api",
+      "app"
+    ],
+    "unused_packages": [
+      "iniconfig",
+      "packaging",
+      "pluggy",
+      "markupsafe",
+      "rx",
+      "aiohappyeyeballs",
+      "aiohttp",
+      "aiosignal",
+      "attrs",
+      "blinker",
+      "certifi",
+      "charset-normalizer",
+      "click",
+      "contourpy",
+      "cycler",
+      "dnspython",
+      "flask-sqlalchemy",
+      "fonttools",
+      "frozenlist",
+      "greenlet",
+      "idna",
+      "itsdangerous",
+      "jinja2",
+      "kiwisolver",
+      "multidict",
+      "openai",
+      "pandas-ta",
+      "pillow",
+      "propcache",
+      "pyparsing",
+      "python-dateutil",
+      "python-deriv-api",
+      "python-dotenv",
+      "pytz",
+      "reactivex",
+      "repl-nix-workspace",
+      "requests",
+      "sci-learn",
+      "scikit-learn",
+      "scipy",
+      "six",
+      "sqlalchemy",
+      "threadpoolctl",
+      "tqdm",
+      "typing-extensions",
+      "tzdata",
+      "urllib3",
+      "websockets",
+      "werkzeug",
+      "yarl",
+      "autocommand",
+      "backports.tarfile",
+      "importlib-metadata",
+      "importlib-resources",
+      "inflect",
+      "jaraco.collections",
+      "jaraco.context",
+      "jaraco.functools",
+      "jaraco.text",
+      "more-itertools",
+      "platformdirs",
+      "tomli",
+      "typeguard",
+      "zipp"
+    ]
   }
 }

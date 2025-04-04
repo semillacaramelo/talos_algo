@@ -1,0 +1,247 @@
+# Dependency Analysis Report
+
+## Summary
+- Used packages: 13
+- Installed packages: 76
+- Required packages (requirements.txt): 150
+- Missing packages: 4
+- Unused packages: 64
+
+## Used Packages
+- app: Not installed
+- config: Not installed
+- deriv_api: Not installed
+- flask: 3.1.0
+- joblib: 1.4.2
+- matplotlib: 3.10.1
+- numpy: 1.23.5
+- pandas: 1.5.3
+- pkg_resources: Not installed
+- pytest: 8.1.1
+- setuptools: 75.1.1.post0
+- sklearn: Not installed
+- src: Not installed
+
+## Missing Packages
+- app
+- deriv_api
+- pkg_resources
+- sklearn
+
+## Unused Packages
+- aiohappyeyeballs: 2.6.1
+- aiohttp: 3.11.16
+- aiosignal: 1.3.2
+- attrs: 25.3.0
+- autocommand: 2.2.2
+- backports.tarfile: 1.2.0
+- blinker: 1.9.0
+- certifi: 2025.1.31
+- charset-normalizer: 3.4.1
+- click: 8.1.8
+- contourpy: 1.3.1
+- cycler: 0.12.1
+- dnspython: 2.7.0
+- flask-sqlalchemy: 3.1.1
+- fonttools: 4.57.0
+- frozenlist: 1.5.0
+- greenlet: 3.1.1
+- idna: 3.10
+- importlib-metadata: 8.0.0
+- importlib-resources: 6.4.0
+- inflect: 7.3.1
+- iniconfig: 2.0.0
+- itsdangerous: 2.2.0
+- jaraco.collections: 5.1.0
+- jaraco.context: 5.3.0
+- jaraco.functools: 4.0.1
+- jaraco.text: 3.12.1
+- jinja2: 3.1.6
+- kiwisolver: 1.4.8
+- markupsafe: 3.0.2
+- more-itertools: 10.3.0
+- multidict: 6.3.2
+- openai: 0.28.0
+- packaging: 24.0
+- pandas-ta: 0.3.14b0
+- pillow: 11.1.0
+- platformdirs: 4.2.2
+- pluggy: 1.4.0
+- propcache: 0.3.1
+- pyparsing: 3.2.3
+- python-dateutil: 2.9.0.post0
+- python-deriv-api: 0.1.7
+- python-dotenv: 1.1.0
+- pytz: 2025.2
+- reactivex: 4.0.4
+- repl-nix-workspace: 0.1.0
+- requests: 2.32.3
+- rx: 3.2.0
+- sci-learn: 0.1.4
+- scikit-learn: 1.6.1
+- scipy: 1.15.2
+- six: 1.17.0
+- sqlalchemy: 2.0.40
+- threadpoolctl: 3.6.0
+- tomli: 2.0.1
+- tqdm: 4.67.1
+- typeguard: 4.3.0
+- typing-extensions: 4.13.1
+- tzdata: 2025.2
+- urllib3: 2.3.0
+- websockets: 10.3
+- werkzeug: 3.1.3
+- yarl: 1.18.3
+- zipp: 3.19.2
+
+## Requirements.txt
+- GitPython==3.1.44: Not installed (✗ Unused)
+- Jinja2==3.1.6: Not installed (✗ Unused)
+- Markdown==3.7: Not installed (✗ Unused)
+- MarkupSafe==3.0.2: Not installed (✗ Unused)
+- PySocks==1.7.1: Not installed (✗ Unused)
+- PyYAML==6.0.2: Not installed (✗ Unused)
+- Pygments==2.19.1: Not installed (✗ Unused)
+- anyio==4.9.0: Not installed (✗ Unused)
+- argon2-cffi==23.1.0: Not installed (✗ Unused)
+- argon2-cffi-bindings==21.2.0: Not installed (✗ Unused)
+- arrow==1.3.0: Not installed (✗ Unused)
+- asttokens==3.0.0: Not installed (✗ Unused)
+- async-lru==2.0.5: Not installed (✗ Unused)
+- attrs==25.3.0: 25.3.0 (✗ Unused)
+- babel==2.17.0: Not installed (✗ Unused)
+- beautifulsoup4==4.13.3: Not installed (✗ Unused)
+- bleach==6.2.0: Not installed (✗ Unused)
+- bs4==0.0.2: Not installed (✗ Unused)
+- certifi==2025.1.31: 2025.1.31 (✗ Unused)
+- cffi==1.17.1: Not installed (✗ Unused)
+- charset-normalizer==3.4.1: 3.4.1 (✗ Unused)
+- colorama==0.4.6: Not installed (✗ Unused)
+- comm==0.2.2: Not installed (✗ Unused)
+- contourpy==1.3.1: 1.3.1 (✗ Unused)
+- coverage>=7.4.0: Not installed (✗ Unused)
+- cycler==0.12.1: 0.12.1 (✗ Unused)
+- debugpy==1.8.13: Not installed (✗ Unused)
+- decorator==5.2.1: Not installed (✗ Unused)
+- defusedxml==0.7.1: Not installed (✗ Unused)
+- executing==2.2.0: Not installed (✗ Unused)
+- fastjsonschema==2.21.1: Not installed (✗ Unused)
+- filelock==3.13.1: Not installed (✗ Unused)
+- flask: 3.1.0 (✓ Used)
+- flask-sqlalchemy: 3.1.1 (✗ Unused)
+- fonttools==4.56.0: 4.57.0 (✗ Unused)
+- fqdn==1.5.1: Not installed (✗ Unused)
+- fsspec==2024.6.1: Not installed (✗ Unused)
+- gitdb==4.0.12: Not installed (✗ Unused)
+- gunicorn: 23.0.0 (✗ Unused)
+- h11==0.14.0: Not installed (✗ Unused)
+- httpcore==1.0.7: Not installed (✗ Unused)
+- httpx==0.28.1: Not installed (✗ Unused)
+- idna==3.10: 3.10 (✗ Unused)
+- ipykernel==6.29.5: Not installed (✗ Unused)
+- ipython==9.0.2: Not installed (✗ Unused)
+- ipython_pygments_lexers==1.1.1: Not installed (✗ Unused)
+- isoduration==20.11.0: Not installed (✗ Unused)
+- jedi==0.19.2: Not installed (✗ Unused)
+- joblib: 1.4.2 (✓ Used)
+- json5==0.10.0: Not installed (✗ Unused)
+- jsonpointer==3.0.0: Not installed (✗ Unused)
+- jsonschema==4.23.0: Not installed (✗ Unused)
+- jsonschema-specifications==2024.10.1: Not installed (✗ Unused)
+- jupyter-events==0.12.0: Not installed (✗ Unused)
+- jupyter-lsp==2.2.5: Not installed (✗ Unused)
+- jupyter-server-mathjax==0.2.6: Not installed (✗ Unused)
+- jupyter_client==8.6.3: Not installed (✗ Unused)
+- jupyter_core==5.7.2: Not installed (✗ Unused)
+- jupyter_server==2.15.0: Not installed (✗ Unused)
+- jupyter_server_terminals==0.5.3: Not installed (✗ Unused)
+- jupyterlab==4.3.6: Not installed (✗ Unused)
+- jupyterlab_git==0.51.0: Not installed (✗ Unused)
+- jupyterlab_pygments==0.3.0: Not installed (✗ Unused)
+- jupyterlab_server==2.27.3: Not installed (✗ Unused)
+- kiwisolver==1.4.8: 1.4.8 (✗ Unused)
+- matplotlib==3.10.1: 3.10.1 (✓ Used)
+- matplotlib-inline==0.1.7: Not installed (✗ Unused)
+- mistune==3.1.2: Not installed (✗ Unused)
+- mpmath==1.3.0: Not installed (✗ Unused)
+- narwhals==1.31.0: Not installed (✗ Unused)
+- nbclient==0.10.2: Not installed (✗ Unused)
+- nbconvert==7.16.6: Not installed (✗ Unused)
+- nbdime==4.0.2: Not installed (✗ Unused)
+- nbformat==5.10.4: Not installed (✗ Unused)
+- nest-asyncio==1.6.0: Not installed (✗ Unused)
+- networkx==3.3: Not installed (✗ Unused)
+- notebook_shim==0.2.4: Not installed (✗ Unused)
+- numpy: 1.23.5 (✓ Used)
+- outcome==1.3.0.post0: Not installed (✗ Unused)
+- overrides==7.7.0: Not installed (✗ Unused)
+- packaging==24.2: 24.0 (✗ Unused)
+- pandas: 1.5.3 (✓ Used)
+- pandas-ta: 0.3.14b0 (✗ Unused)
+- pandas_ta: Not installed (✗ Unused)
+- pandocfilters==1.5.1: Not installed (✗ Unused)
+- parso==0.8.4: Not installed (✗ Unused)
+- pathlib==1.0.1: Not installed (✗ Unused)
+- pexpect==4.9.0: Not installed (✗ Unused)
+- pillow==11.1.0: 11.1.0 (✗ Unused)
+- platformdirs==4.3.6: 4.2.2 (✗ Unused)
+- plotly==6.0.1: Not installed (✗ Unused)
+- prometheus_client==0.21.1: Not installed (✗ Unused)
+- prompt_toolkit==3.0.50: Not installed (✗ Unused)
+- psutil==7.0.0: Not installed (✗ Unused)
+- ptyprocess==0.7.0: Not installed (✗ Unused)
+- pure_eval==0.2.3: Not installed (✗ Unused)
+- pycparser==2.22: Not installed (✗ Unused)
+- pyparsing==3.2.1: 3.2.3 (✗ Unused)
+- pytest>=8.0.0: 8.1.1 (✓ Used)
+- pytest-asyncio>=0.21.0: Not installed (✗ Unused)
+- pytest-benchmark>=4.0.0: Not installed (✗ Unused)
+- pytest-cov>=4.1.0: Not installed (✗ Unused)
+- pytest-mock>=3.10.0: Not installed (✗ Unused)
+- pytest-timeout>=2.1.0: Not installed (✗ Unused)
+- pytest-xdist>=3.3.0: Not installed (✗ Unused)
+- python-dateutil==2.9.0.post0: 2.9.0.post0 (✗ Unused)
+- python-dotenv: 1.1.0 (✗ Unused)
+- python-json-logger==3.3.0: Not installed (✗ Unused)
+- python_deriv_api: Not installed (✗ Unused)
+- pytz==2025.1: 2025.2 (✗ Unused)
+- pyzmq==26.3.0: Not installed (✗ Unused)
+- reactivex: 4.0.4 (✗ Unused)
+- referencing==0.36.2: Not installed (✗ Unused)
+- requests==2.32.3: 2.32.3 (✗ Unused)
+- rfc3339-validator==0.1.4: Not installed (✗ Unused)
+- rfc3986-validator==0.1.1: Not installed (✗ Unused)
+- rpds-py==0.23.1: Not installed (✗ Unused)
+- rx: 3.2.0 (✗ Unused)
+- scikit-learn: 1.6.1 (✗ Unused)
+- scipy>=1.11.0: 1.15.2 (✗ Unused)
+- seaborn>=0.13.0: Not installed (✗ Unused)
+- selenium>=4.14.0: Not installed (✗ Unused)
+- setuptools>=68.0.0: 75.1.1.post0 (✓ Used)
+- six>=1.16.0: 1.17.0 (✗ Unused)
+- smmap>=5.0.0: Not installed (✗ Unused)
+- sniffio>=1.3.0: Not installed (✗ Unused)
+- sortedcontainers>=2.4.0: Not installed (✗ Unused)
+- soupsieve>=2.4.0: Not installed (✗ Unused)
+- stack-data>=0.6.2: Not installed (✗ Unused)
+- sympy>=1.12.0: Not installed (✗ Unused)
+- terminado>=0.17.1: Not installed (✗ Unused)
+- threadpoolctl>=3.2.0: 3.6.0 (✗ Unused)
+- tinycss2>=1.2.1: Not installed (✗ Unused)
+- torch>=2.1.0: Not installed (✗ Unused)
+- tornado>=6.3.3: Not installed (✗ Unused)
+- traitlets==5.14.3: Not installed (✗ Unused)
+- trio==0.29.0: Not installed (✗ Unused)
+- trio-websocket==0.12.2: Not installed (✗ Unused)
+- types-python-dateutil==2.9.0.20241206: Not installed (✗ Unused)
+- typing_extensions==4.12.2: Not installed (✗ Unused)
+- tzdata==2025.1: 2025.2 (✗ Unused)
+- uri-template==1.3.0: Not installed (✗ Unused)
+- urllib3==2.3.0: 2.3.0 (✗ Unused)
+- wcwidth==0.2.13: Not installed (✗ Unused)
+- webcolors==24.11.1: Not installed (✗ Unused)
+- webdriver-manager==4.0.2: Not installed (✗ Unused)
+- webencodings==0.5.1: Not installed (✗ Unused)
+- websocket-client==1.8.0: Not installed (✗ Unused)
+- websockets: 10.3 (✗ Unused)
+- wsproto==1.2.0: Not installed (✗ Unused)
