@@ -1,0 +1,99 @@
+@assistant Analyze and refactor the entire Python trading bot project within this Replit environment. The goal is to create a fully functional Minimum Viable Product (MVP) consisting of:
+    A) A stable Python backend (`src/` directory) that uses a pre-trained RandomForest ML model to trade Digital Options (Rise/Fall) on Deriv via the `python-deriv-api` library, including robust state management and basic risk controls.
+    B) A functional Flask web UI (`app.py`, `templates/`, `static/`) allowing users to start/stop the bot, monitor its status (running/stopped, balance, active trades), and view live logs.
+
+**Current Project Context:**
+- The project was cloned from a GitHub repository.
+- It includes a partially generated Flask UI (`app.py`, `templates/`, `static/`) and a partially refactored Python backend in the `src/` directory (likely containing `main.py`, `api/deriv_api_handler.py`, `data/data_handler.py`, `models/signal_model.py`, `utils/logger.py`, `utils/backtest.py`, config files, etc.).
+- Previous steps attempted to:
+    - Refactor the bot into a `TradingBot` class in `src/main.py`.
+    - Implement ML model loading (`joblib`, `RandomForestClassifier`, `StandardScaler`) in `src/models/signal_model.py`.
+    - Implement feature engineering (`engineer_features` in `src/models/signal_model.py`) using basic MAs and potentially `pandas-ta` for RSI, ATR, Stoch, MACD.
+    - Implement the `proposal` -> `buy` flow for Digital Options (CALL/PUT) in `src/api/deriv_api_handler.py` and `src/main.py`.
+    - Implement contract monitoring using `proposal_open_contract` stream and state management (`active_contracts` dict) in `src/main.py` and relevant handlers.
+    - Implement asynchronous callback handling using `asyncio.create_task`.
+- **Known Issue:** A dependency conflict exists. `python-deriv-api` requires `websockets==10.3`, but other dependencies or the environment might install a newer version, causing runtime errors.
+- **Likely State:** The code probably contains import errors, logical inconsistencies, incomplete UI integration, incorrect async handling within Flask, and possibly errors in the feature/ML/trading logic implementation details.
+
+**High-Level Plan:**
+1.  **Setup & Dependencies:** Fix the environment and install requirements correctly.
+2.  **Generate Training/Backtesting Code:** Ensure the scripts for *offline* model training and ML backtesting are correctly generated based on the intended strategy.
+3.  **Backend Stabilisation:** Refactor and debug the core Python bot logic (`src/`) until it runs reliably standalone (connects, loads model, generates ML signals, executes proposal->buy, monitors trades).
+4.  **UI Integration:** Connect the Flask UI (`app.py`) to the stable backend, ensuring proper async handling and data flow for controls, status, and logs.
+5.  **End-to-End Testing & Refinement:** Test the complete web application, identify remaining bugs, and refine.
+
+**Detailed Step-by-Step Instructions & Verification:**
+
+**(Phase 1: Setup & Dependencies - CRITICAL FIRST STEP)**
+
+1.  **Verify/Create `requirements.txt`:** Ensure a `requirements.txt` file exists at the project root. Add/verify the following core dependencies (use appropriate versions if known, otherwise let pip resolve initially):
+    ```
+    # Use git+https for Replit compatibility if needed
+    # python-deriv-api @ git+https://github.com/deriv-com/python-deriv-api.git 
+    # OR let pip handle from PyPI if preferred and compatible:
+    python-deriv-api>=0.1.7 
+    pandas>=1.3.0
+    numpy>=1.20.0
+    scikit-learn>=1.1.0 # Or version used for training
+    joblib>=1.1.0
+    pandas-ta>=0.3.14b
+    Flask>=2.0.0
+    reactivex>=4.0.0
+    # websockets will be pinned later
+    ```
+2.  **Install Dependencies & Pin Websockets:** Execute the following commands in the Replit Shell:
+    *   `pip install -r requirements.txt` (Install everything *except* the specific websocket version initially).
+    *   `pip install websockets==10.3 --force-reinstall` ( **Crucial:** Force install the version compatible with `python-deriv-api`, overwriting any other version).
+    *   `pip freeze > requirements.txt` (Update the requirements file to lock *all* installed versions, including the pinned `websockets==10.3`).
+    *   **Verification:** Ask the agent to run `pip check` to see if there are any immediate unresolved dependency conflicts after pinning. Address critical conflicts if reported.
+
+**(Phase 2: Generate Training & Backtesting Logic - AI does the work, User runs manually later)**
+
+3.  **Generate `engineer_features` (`src/models/signal_model.py`):**
+    *   **Action:** Ensure/Create the function `engineer_features(df)` that takes a DataFrame and calculates *all* specified features: `price_change_1`, `price_change_5`, `ma_diff` (SMA 5/20), `RSI_14`, `ATRr_14`, `STOCHk_14_3_3`, `STOCHd_14_3_3`, `MACD_12_26_9`, `MACDh_12_26_9`, `MACDs_12_26_9`. Use `pandas-ta`. Handle NaNs robustly (`df.dropna(inplace=True)` *after* all calculations).
+    *   **Action:** Ensure the global `FEATURE_COLUMNS` list in this file matches *all* these generated feature names precisely.
+    *   **Verification:** Ask the agent to syntax-check this function.
+
+4.  **Generate `train_model.py` (`src/train_model.py`):**
+    *   **Action:** Ensure/Create the script as per **Prompt 2 (Sub-Prompt D)** from the previous response. It must: import necessary functions/variables from `src` and `config`, fetch ample data (~5000 bars), call the *verified* `engineer_features`, define the target (next candle direction), split data (`shuffle=False`), scale features (`StandardScaler`), train a `RandomForestClassifier` (specify parameters like `n_estimators=100`, `class_weight='balanced'`), evaluate (accuracy, classification report), and save *both* the model (`basic_predictor.joblib`) and scaler (`scaler.joblib`) to `src/models/`.
+    *   **Verification:** Ask the agent to syntax-check the generated script. *(User will run this later in the Shell)*.
+
+5.  **Generate `ml_backtest.py` (`src/ml_backtest.py`):**
+    *   **Action:** Ensure/Create the ML backtesting script as per **Prompt 4 (Sub-Prompt G)** from the previous response. It must: load the model/scaler, fetch data, call the *verified* `engineer_features`, apply the scaler, generate predictions using the loaded model, map predictions to signals (1 BUY, -1 SELL), and feed these signals into the `SimpleBacktester` class (ensure `SimpleBacktester` in `src/utils/backtest.py` accepts the `signals` parameter).
+    *   **Verification:** Ask the agent to syntax-check the generated script. *(User will run this later in the Shell)*.
+
+**(Phase 3: Backend Stabilisation - Iterative Debugging)**
+
+6.  **Refactor/Verify `TradingBot` Class (`src/main.py`):**
+    *   Ensure the main bot logic is encapsulated in a `TradingBot` class with `async def start(self)` and `async def stop(self)` methods.
+    *   Ensure state (`api`, `model`, `scaler`, `active_contracts`, `is_running`, `daily_pnl` etc.) is managed via `self`.
+    *   Ensure `start` loads model/scaler *once* and handles loading failures gracefully.
+    *   Ensure `start` initiates the tick subscription (`subscribe_to_ticks`), passing necessary refs (`api_ref`, `model_ref`, `scaler_ref`).
+    *   Ensure `stop` handles disposal of the main tick subscription and all active contract subscriptions (`active_contracts`), and calls the `disconnect` function.
+
+7.  **Verify Core Logic Functions (Iterative Fixes):**
+    *   **Review `handle_tick`:** Check it correctly receives ticks, accumulates them, calls `generate_signal` (passing model/scaler/deque), interprets the BUY/SELL signal, calls `get_option_proposal` (with correct "CALL"/"PUT"), then `buy_option_contract`, then `subscribe_to_contract_updates`. Verify dynamic stake calculation placeholder and daily loss check placeholder logic structure.
+    *   **Review `handle_contract_update`:** Check it parses updates, identifies `is_sold==1`, logs P/L, updates `daily_pnl`, disposes the specific contract subscription from `active_contracts`, and removes the contract entry.
+    *   **Review API Handlers:** Check `get_option_proposal`, `buy_option_contract`, `subscribe_to_contract_updates` for correct API call syntax (`api.proposal`, `api.buy`, `manager.subscribe`), payload structure, and use of `asyncio.create_task` for callbacks where needed. Check `disconnect` logic.
+    *   **Action:** Ask the Assistant to run `python -u src/main.py` (or the temporary startup code within it). Analyze tracebacks. Instruct the Assistant: "The script failed with [Paste Error]. Please fix the issue in [File Name]." Repeat until the backend runs without major Python errors for at least one trade cycle (signal->propose->buy->subscribe_update).
+
+**(Phase 4: UI Integration - Connecting Frontend and Backend)**
+
+8.  **Fix/Implement Flask Routes (`app.py`):**
+    *   Implement the **threading approach** (or Replit's standard if known) for `/start_bot` and `/stop_bot` to correctly run `bot.start()` and `bot.stop()` asynchronously without blocking Flask.
+    *   Implement `/get_status` to accurately fetch state (`is_running`, balance, `len(active_contracts)`, config) from the `bot` instance and return valid JSON.
+    *   Implement `/stream_logs` using SSE (preferred) or polling, reading from the shared queue/deque populated by the logger. Verify the logger setup in `src/utils/logger.py` supports this sharing mechanism.
+    *   **Verification:** Ask the Agent to run the Flask app (usually via Replit's "Run" button or `python app.py`). Use `curl` commands in the Shell or the browser preview to test each route (`/start_bot`, `/stop_bot`, `/get_status`, `/stream_logs`) and ensure they respond correctly without server errors.
+
+9.  **Verify Frontend JavaScript (`static/script.js`):**
+    *   Ensure the JS correctly calls `fetch` for `/start_bot`, `/stop_bot`.
+    *   Ensure the periodic fetch to `/get_status` updates all relevant HTML elements (`#status-display`, `#balance-value`, etc.).
+    *   Ensure the connection to `/stream_logs` (e.g., `new EventSource('/stream_logs')`) works and *appends* new log lines to `#log-output`.
+    *   **Verification:** Use the Replit web preview. Open the browser's Developer Console (usually F12). Click UI buttons, check for JS errors, verify UI elements update, and check if logs appear in the text area. Instruct the Agent: "The log output in the UI is not updating. Please check the `/stream_logs` route in `app.py` and the EventSource/fetch logic in `static/script.js`."
+
+**(Phase 5: Final Testing & Refinement)**
+
+10. **End-to-End Test:** Run the Flask application via the "Run" button. Use the UI to start the bot. Let it run long enough to receive signals and place at least one demo trade. Monitor the UI status and logs. Stop the bot via the UI. Check for any console/log errors during the entire process.
+11. **Final Polish:** Ask the Assistant to review the code for any remaining obvious bugs, inconsistencies, or areas needing better error handling based on the execution.
+
+**Execute this prompt step-by-step. Verify the output/success of each phase before moving to the next. Use the Replit Shell extensively to run individual scripts (`train_model.py`, `ml_backtest.py`) and the Flask app, providing feedback and errors to the AI.**
