@@ -180,9 +180,10 @@ class TradingBot:
             # Subscribe to contract updates directly
             api = self.api.api
             
-            # Define async handler
-            async def contract_update_handler(message):
-                await self.handle_contract_update(message)
+            # Define wrapper to handle async callback
+            def contract_update_wrapper(message):
+                # Schedule the async function in the event loop
+                asyncio.create_task(self.handle_contract_update(message))
                 
             # Use the official API to subscribe to contract updates
             contract_request = {
@@ -194,8 +195,8 @@ class TradingBot:
             # Subscribe to contract updates
             contract_observable = await api.subscribe(contract_request)
             
-            # Register our callback
-            contract_subscription = contract_observable.subscribe(contract_update_handler)
+            # Register our callback wrapper
+            contract_subscription = contract_observable.subscribe(contract_update_wrapper)
             
             # Store the subscription in our active contracts dict for cleanup
             self.active_contracts[contract_id]['subscription'] = contract_subscription
@@ -252,11 +253,12 @@ class TradingBot:
             from src.utils.logger import setup_logger
             logger = setup_logger()
             
-            # Define tick handling function
-            async def tick_callback(message):
+            # Create a non-async callback that will schedule the async function
+            def tick_callback_wrapper(message):
                 if message and 'tick' in message:
                     logger.info(f"Received tick: {message['tick']['symbol']} = {message['tick']['quote']}")
-                    await self.handle_tick(message)
+                    # Schedule the async function in the event loop
+                    asyncio.create_task(self.handle_tick(message))
             
             # Subscribe to ticks using the official API library
             from config.settings import INSTRUMENT
@@ -264,8 +266,8 @@ class TradingBot:
             # Subscribe to ticks using official Deriv API
             tick_observable = await self.api.api.subscribe({"ticks": INSTRUMENT, "subscribe": 1})
             
-            # Subscribe to the observable with our callback
-            tick_subscription = tick_observable.subscribe(tick_callback)
+            # Subscribe to the observable with our non-async wrapper
+            tick_subscription = tick_observable.subscribe(tick_callback_wrapper)
             
             # Store the subscription for later cleanup
             self.tick_subscription = tick_subscription

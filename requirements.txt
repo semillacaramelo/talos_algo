@@ -193,3 +193,8 @@ pandas
 scikit-learn
 rx
 websockets
+joblib
+numpy
+pandas
+reactivex
+scikit-learn
