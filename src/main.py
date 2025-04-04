@@ -4,9 +4,9 @@ import asyncio
 from collections import deque
 from datetime import datetime
 import pandas as pd
-from typing import Dict, Optional
+from typing import Dict, Optional, Any, Tuple, List
 
-from src.api.deriv_api_handler import DerivAPIAsync
+from src.api.deriv_api_handler import DerivAPIWrapper
 from src.models.signal_model import train_or_load_model, generate_signal
 from config.settings import (
     OPTION_DURATION, OPTION_DURATION_UNIT, BASIS, CURRENCY,
@@ -21,7 +21,7 @@ class TradingBot:
         self.api_key = api_key or API_TOKEN
         if not self.api_key:
             raise ValueError("API key is required. Set DERIV_DEMO_API_TOKEN environment variable.")
-        self.api = DerivAPIAsync(self.api_key)
+        self.api = DerivAPIWrapper(self.api_key)
         self.active_contracts: Dict[str, dict] = {}
         self.recent_ticks_deque = deque(maxlen=50)  # Store more points than needed
         self.daily_pnl = 0.0
@@ -51,7 +51,21 @@ class TradingBot:
     async def _get_dynamic_stake(self) -> float:
         """Calculate dynamic stake based on account balance."""
         try:
-            balance = await self.api.balance()
+            # Access the underlying DerivAPI object
+            api = self.api.api
+            if not api:
+                print("API not initialized, using minimum stake")
+                return MIN_STAKE_AMOUNT
+                
+            # Get balance using the official API
+            balance = await api.balance()
+            
+            # Parse the balance response
+            if 'error' in balance:
+                print(f"Failed to get balance: {balance['error'].get('message', 'Unknown error')}")
+                return MIN_STAKE_AMOUNT
+                
+            # Extract the balance value
             account_balance = float(balance['balance']['balance'])
             stake = account_balance * DYNAMIC_STAKE_PERCENT
             return max(min(stake, MAX_STAKE_AMOUNT), MIN_STAKE_AMOUNT)
@@ -131,19 +145,25 @@ class TradingBot:
                 "symbol": INSTRUMENT,
             }
             
-            # Get proposal
-            proposal = await self.api.proposal(proposal_request)
+            # Get API object
+            api = self.api.api
+            if not api:
+                print("API not initialized")
+                return
+
+            # Get proposal using the official API
+            proposal = await api.proposal(proposal_request)
 
             if not proposal or 'error' in proposal:
                 print(f"Proposal error: {proposal.get('error', {}).get('message', 'Unknown error')}")
                 return
 
-            # Buy contract
+            # Buy contract using the official API
             buy_request = {
                 "buy": proposal['proposal']['id'],
                 "price": proposal['proposal']['ask_price']
             }
-            buy_response = await self.api.buy(buy_request)
+            buy_response = await api.buy(buy_request)
 
             if 'error' in buy_response:
                 print(f"Buy error: {buy_response['error']['message']}")
@@ -158,18 +178,27 @@ class TradingBot:
             }
 
             # Subscribe to contract updates directly
-            from src.api.deriv_api_handler import subscribe_to_contract_updates
+            api = self.api.api
             
             # Define async handler
             async def contract_update_handler(message):
                 await self.handle_contract_update(message)
                 
-            # Set up subscription
-            await subscribe_to_contract_updates(
-                self.api, 
-                contract_id, 
-                contract_update_handler
-            )
+            # Use the official API to subscribe to contract updates
+            contract_request = {
+                "proposal_open_contract": 1,
+                "contract_id": contract_id,
+                "subscribe": 1
+            }
+            
+            # Subscribe to contract updates
+            contract_observable = await api.subscribe(contract_request)
+            
+            # Register our callback
+            contract_subscription = contract_observable.subscribe(contract_update_handler)
+            
+            # Store the subscription in our active contracts dict for cleanup
+            self.active_contracts[contract_id]['subscription'] = contract_subscription
 
         except Exception as e:
             print(f"Error in handle_tick: {e}")
@@ -229,9 +258,18 @@ class TradingBot:
                     logger.info(f"Received tick: {message['tick']['symbol']} = {message['tick']['quote']}")
                     await self.handle_tick(message)
             
-            # Subscribe to ticks and register our callback
-            await self.api.subscribe({"ticks": INSTRUMENT})
-            await self.api.add_subscription_handler("tick", tick_callback)
+            # Subscribe to ticks using the official API library
+            from config.settings import INSTRUMENT
+            
+            # Subscribe to ticks using official Deriv API
+            tick_observable = await self.api.api.subscribe({"ticks": INSTRUMENT, "subscribe": 1})
+            
+            # Subscribe to the observable with our callback
+            tick_subscription = tick_observable.subscribe(tick_callback)
+            
+            # Store the subscription for later cleanup
+            self.tick_subscription = tick_subscription
+            
             logger.info(f"Successfully subscribed to ticks for {INSTRUMENT}")
 
             # Keep the bot running
@@ -243,7 +281,20 @@ class TradingBot:
         finally:
             # Cleanup
             try:
-                # Simply disconnect - our DerivAPIAsync class will clean up subscriptions
+                # Clean up tick subscription
+                if hasattr(self, 'tick_subscription'):
+                    self.tick_subscription.unsubscribe()
+                
+                # Clean up contract subscriptions
+                for contract_id, contract_data in list(self.active_contracts.items()):
+                    if 'subscription' in contract_data:
+                        try:
+                            contract_data['subscription'].unsubscribe()
+                            print(f"Unsubscribed from contract {contract_id}")
+                        except Exception as e:
+                            print(f"Error unsubscribing from contract {contract_id}: {e}")
+                
+                # Disconnect from API
                 await self.api.disconnect()
                 print("API connection closed and cleaned up")
             except Exception as e:

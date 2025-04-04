@@ -84,9 +84,11 @@ async def get_status():
     # Get balance if API is connected and bot is running
     balance = "N/A"
     
-    if status['is_running'] and hasattr(bot, 'api') and bot.api.connected:
+    if status['is_running'] and hasattr(bot, 'api') and bot.api.api:
         try:
-            balance_response = await bot.api.balance()
+            # Access the underlying official API
+            api = bot.api.api
+            balance_response = await api.balance()
             if balance_response and 'balance' in balance_response:
                 balance = f"{balance_response['balance']['currency']} {balance_response['balance']['balance']}"
         except Exception as e:
