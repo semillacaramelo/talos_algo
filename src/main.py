@@ -29,6 +29,16 @@ class TradingBot:
         self.model = None
         self.scaler = None
         self.is_running = False
+        
+        # Enhanced logging attributes
+        self.last_signal = None
+        self.last_tick_price = None
+        self.last_feature_count = None
+        self.last_trade_time = None
+        self.start_time = None
+        self.processed_ticks_count = 0
+        self.feature_calculation_success = False
+        self.signal_calculation_success = False
 
     async def initialize(self):
         """Initialize the bot by loading models and connecting to API."""
@@ -114,12 +124,16 @@ class TradingBot:
                 return
                 
             # Update tick history
+            tick_price = float(tick_data['tick']['quote'])
+            self.last_tick_price = tick_price
+            self.processed_ticks_count += 1
+            
             self.recent_ticks_deque.append({
                 'timestamp': tick_data['tick']['epoch'],
-                'close': float(tick_data['tick']['quote']),
-                'high': float(tick_data['tick']['quote']),
-                'low': float(tick_data['tick']['quote']),
-                'open': float(tick_data['tick']['quote'])
+                'close': tick_price,
+                'high': tick_price,
+                'low': tick_price,
+                'open': tick_price
             })
 
             # Check if we have enough data and can trade
@@ -127,13 +141,30 @@ class TradingBot:
                 return
 
             # Log the tick data for debugging
-            print(f"Received tick: {tick_data['tick']['symbol']} = {tick_data['tick']['quote']}")
+            print(f"Received tick: {tick_data['tick']['symbol']} = {tick_price}")
             
             # Convert deque to DataFrame for analysis
             df = pd.DataFrame(list(self.recent_ticks_deque))
+            
+            # Track feature engineering metrics before signal generation
+            try:
+                from src.models.signal_model import engineer_features
+                feature_df = engineer_features(df.copy())
+                if not feature_df.empty:
+                    # Count the actual features created
+                    self.feature_calculation_success = True
+                    self.last_feature_count = len(feature_df.columns)
+                else:
+                    self.feature_calculation_success = False
+            except Exception as e:
+                print(f"Error tracking features: {e}")
+                self.feature_calculation_success = False
 
             # Generate trading signal
             signal = generate_signal(self.model, self.scaler, df)
+            self.last_signal = signal
+            self.signal_calculation_success = (signal is not None)
+            
             if not signal:
                 return
 
@@ -226,8 +257,21 @@ class TradingBot:
             if update_data['proposal_open_contract']['is_sold'] == 1:
                 profit = float(update_data['proposal_open_contract']['profit'])
                 self.daily_pnl += profit
+                
+                # Update last trade time for UI display
+                self.last_trade_time = datetime.now()
 
                 print(f"Contract {contract_id} finished. Profit: ${profit:.2f}, Daily P&L: ${self.daily_pnl:.2f}")
+                
+                # Log more detailed trade info
+                contract_type = update_data['proposal_open_contract']['contract_type']
+                entry_tick = update_data['proposal_open_contract'].get('entry_tick', 'N/A')
+                exit_tick = update_data['proposal_open_contract'].get('exit_tick', 'N/A')
+                entry_time = update_data['proposal_open_contract'].get('date_start', 'N/A')
+                exit_time = update_data['proposal_open_contract'].get('sell_time', 'N/A')
+                
+                print(f"Trade details - Type: {contract_type}, Entry: {entry_tick}, Exit: {exit_tick}")
+                print(f"Trade timing - Entry: {entry_time}, Exit: {exit_time}")
 
                 if contract_id in self.active_contracts:
                     del self.active_contracts[contract_id]
@@ -246,8 +290,15 @@ class TradingBot:
         """Start the trading bot."""
         if getattr(self, 'is_running', False):
             return False
-            
+        
+        # Record the start time for uptime tracking
+        self.start_time = datetime.now()
         self.is_running = True
+        self.processed_ticks_count = 0
+        self.last_signal = None
+        self.last_tick_price = None
+        self.last_feature_count = None
+        
         # Start the bot in a separate task
         asyncio.create_task(self.run())
         return True

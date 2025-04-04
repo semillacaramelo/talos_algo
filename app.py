@@ -105,6 +105,11 @@ async def get_status():
     
     # Get balance if API is connected and bot is running
     balance = "N/A"
+    last_signal = "N/A"
+    last_price = "N/A"
+    feature_count = "N/A"
+    last_trade_time = "N/A"
+    uptime = "N/A"
     
     if status['is_running'] and hasattr(bot, 'api') and bot.api.api:
         try:
@@ -113,13 +118,40 @@ async def get_status():
             balance_response = await api.balance()
             if balance_response and 'balance' in balance_response:
                 balance = f"{balance_response['balance']['currency']} {balance_response['balance']['balance']}"
+                
+            # Get additional bot info if available
+            if hasattr(bot, 'last_signal'):
+                last_signal = bot.last_signal or "None"
+            
+            if hasattr(bot, 'last_tick_price'):
+                last_price = str(bot.last_tick_price) or "None"
+                
+            if hasattr(bot, 'last_feature_count'):
+                feature_count = str(bot.last_feature_count) or "N/A"
+                
+            if hasattr(bot, 'last_trade_time') and bot.last_trade_time:
+                last_trade_time = bot.last_trade_time.strftime("%H:%M:%S") if hasattr(bot.last_trade_time, 'strftime') else str(bot.last_trade_time)
+            
+            if hasattr(bot, 'start_time') and bot.start_time:
+                from datetime import datetime
+                now = datetime.now()
+                diff = now - bot.start_time
+                hours, remainder = divmod(diff.total_seconds(), 3600)
+                minutes, seconds = divmod(remainder, 60)
+                uptime = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+                
         except Exception as e:
-            logger.error(f"Error fetching balance: {e}")
+            logger.error(f"Error fetching extended status: {e}")
     
     return jsonify({
         "status": "Running" if status['is_running'] else "Idle",
         "balance": balance,
         "active_trades": status['active_contracts'],
+        "last_signal": last_signal,
+        "last_price": last_price,
+        "feature_count": feature_count,
+        "last_trade_time": last_trade_time,
+        "uptime": uptime,
         "config": {
             "instrument": INSTRUMENT,
             "duration": f"{OPTION_DURATION} {OPTION_DURATION_UNIT}",

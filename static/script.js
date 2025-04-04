@@ -9,6 +9,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const stakeValue = document.getElementById('stake-value');
     const balanceValue = document.getElementById('balance-value');
     const activeTradesValue = document.getElementById('active-trades-value');
+    const lastSignalValue = document.getElementById('last-signal-value');
+    const lastPriceValue = document.getElementById('last-price-value');
+    const uptimeValue = document.getElementById('uptime-value');
+    const featureCountValue = document.getElementById('feature-count-value');
+    const lastTradeValue = document.getElementById('last-trade-value');
     const logOutput = document.getElementById('log-output');
     const clearLogsButton = document.getElementById('clear-logs');
 
