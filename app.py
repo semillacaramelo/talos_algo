@@ -61,9 +61,31 @@ async def start_bot():
 async def stop_bot():
     """Stop the trading bot."""
     logger.info("Received stop bot request")
-    success = await bot.stop()
-    logger.info(f"Bot stop initiated: {success}")
-    return {"status": "Bot stopping"}
+    
+    # Check if bot is actually running
+    status = bot.get_status()
+    if not status['is_running']:
+        logger.info("Bot already stopped")
+        return {"status": "Bot already stopped"}
+        
+    try:
+        # Call the stop method with proper exception handling
+        success = await bot.stop()
+        
+        # Give a short delay to allow async operations to complete
+        await asyncio.sleep(0.5)
+        
+        # Double-check that it actually stopped
+        if success:
+            logger.info("Bot stop successful")
+            return {"status": "Bot stopping"}
+        else:
+            logger.error("Bot stop unsuccessful")
+            return {"status": "Failed to stop bot"}, 500
+    except Exception as e:
+        # Log any exceptions that occur
+        logger.error(f"Error stopping bot: {e}")
+        return {"status": f"Error stopping bot: {str(e)}"}, 500
 
 @app.route('/logs')
 def get_logs():

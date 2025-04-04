@@ -51,6 +51,9 @@ class TradingBot:
     async def _get_dynamic_stake(self) -> float:
         """Calculate dynamic stake based on account balance."""
         try:
+            # Import the config settings at the top to avoid undefined variables
+            from config.settings import STAKE_AMOUNT, MIN_STAKE_AMOUNT, MAX_STAKE_AMOUNT, DYNAMIC_STAKE_PERCENT
+            
             # Use the configured STAKE_AMOUNT instead of calculating dynamically
             # This ensures what's displayed in the UI matches what's actually used
             print(f"Using configured stake amount: {STAKE_AMOUNT}")
@@ -77,10 +80,15 @@ class TradingBot:
             #return max(min(stake, MAX_STAKE_AMOUNT), MIN_STAKE_AMOUNT)
         except Exception as e:
             print(f"Error calculating stake: {e}")
+            # Import here too for error handling case
+            from config.settings import STAKE_AMOUNT
             return STAKE_AMOUNT  # Return configured amount even on error
 
     async def _check_trading_limits(self) -> bool:
         """Check if trading should proceed based on risk limits."""
+        # Import at the beginning to avoid undefined variables
+        from config.settings import MAX_DAILY_LOSS, MAX_CONCURRENT_TRADES
+        
         current_date = datetime.now().date()
         if current_date > self.last_pnl_reset:
             self.daily_pnl = 0.0

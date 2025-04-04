@@ -1,0 +1,44 @@
+@assistant Debug and correct two specific issues in the trading bot project:
+1. The "Stop Bot" button in the Flask UI does not correctly or reliably stop the running Python bot backend.
+2. The bot is still encountering errors related to the stake amount (`STAKE_AMOUNT`) when requesting option proposals, despite previous attempts to fix it (e.g., receiving "Please enter a stake amount that's at least 0.35." even when sending 0.40 or 1.0).
+
+**Objective:**
+- Ensure clicking the "Stop Bot" button in the UI gracefully stops the bot's main loop, cleans up subscriptions, and disconnects the API.
+- Resolve the root cause of the stake amount validation error during option proposal requests.
+
+**PART 1: Fix "Stop Bot" Functionality**
+
+1.  **Review `TradingBot.stop()` method (`src/main.py`):**
+    - **Action:** Inspect the `async def stop(self)` method within the `TradingBot` class.
+    - **Instruction:** Verify it *correctly* and *completely* handles shutdown:
+        - Sets a flag like `self.is_running = False` to signal loops to exit.
+        - Explicitly disposes the main tick subscription (`self.tick_subscription_disposable.dispose()` - requires storing this disposable when subscribing).
+        - Iterates through `self.active_contracts` and calls `.dispose()` on each contract's disposable.
+        - Calls the `await disconnect(self.api)` function.
+        - Includes necessary `await asyncio.sleep()` calls (e.g., 0.1-0.5s) after disposing/disconnecting to allow async tasks to finish cleanly.
+        - Add clear logging messages for each step (e.g., "Stop signal received", "Disposing tick subscription...", "Disposing contract N...").
+
+2.  **Review Flask `/stop_bot` Route (`app.py`):**
+    - **Action:** Inspect the `/stop_bot` route.
+    - **Instruction:** Confirm how it calls `bot.stop()`. Ensure it's handling the `async` nature correctly (e.g., using `threading` or a dedicated async loop runner suitable for Flask as discussed previously). If using `threading`, ensure there are no race conditions with shared state. *Crucially, ensure it actually waits for the `bot.stop()` coroutine to complete before returning the response to the UI.* Example using `run_coroutine_in_thread`:
+      ```python
+      # (Helper function potentially needed in app.py)
+      def run_coroutine_in_thread(coro):
+          loop = asyncio.new_event_loop()
+          asyncio.set_event_loop(loop)
+          try:
+              loop.run_until_complete(coro)
+          finally:
+              loop.close()
+
+      # (Inside /stop_bot route)
+      if bot.is_running(): # Check state first
+          logger.info("UI Request: Stopping bot...")
+          stop_thread = threading.Thread(target=run_coroutine_in_thread, args=(bot.stop(),))
+          stop_thread.start()
+          stop_thread.join() # Wait for the stop process to finish
+          logger.info("UI Request: Bot stop process initiated.")
+          return jsonify({"status": "Bot stopping..."}) 
+      else:
+          return jsonify({"status": "Bot already stopped."})
+      
