@@ -20,9 +20,12 @@ HISTORICAL_BARS_COUNT = 100  # Number of past candles for analysis or training
 # Digital Options Trading Configuration
 OPTION_DURATION = 1  # Duration quantity (changed from 5 to 1 minute)
 OPTION_DURATION_UNIT = 'm'  # Duration unit: 't' for ticks, 's' for seconds, 'm' for minutes
-STAKE_AMOUNT = 1.0  # Amount for stake (increased from 0.40 to avoid API issues)
 BASIS = 'stake'  # 'stake' or 'payout'
 CURRENCY = 'USD'  # Account currency
 
 # Risk Management
 MAX_CONCURRENT_TRADES = 1  # Maximum number of concurrent open trades
+DYNAMIC_STAKE_PERCENT = 0.005  # 0.5% of balance per trade
+MIN_STAKE_AMOUNT = 0.35  # Minimum stake amount allowed by Deriv
+MAX_STAKE_AMOUNT = 5.0  # Maximum stake per trade (self-imposed limit)
+MAX_DAILY_LOSS = 20.0  # Maximum allowed loss per day in account currency

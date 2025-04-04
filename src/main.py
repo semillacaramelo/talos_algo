@@ -25,6 +25,8 @@ class TradingBot:
         self.active_contracts = {}
         self.recent_ticks_deque = deque(maxlen=MIN_FEATURE_POINTS + 10)
         self.subscription_data = None
+        self.daily_pnl = 0.0
+        self.last_pnl_reset = datetime.now().date()
 
     async def start(self):
         """Start the trading bot and its main loop."""
@@ -174,7 +176,8 @@ class TradingBot:
 
             if is_sold == 1:
                 profit = contract.get('profit', 0)
-                self.logger.info(f"Contract {contract_id} is now finished. Profit/Loss: {profit}")
+                self.daily_pnl += float(profit)
+                self.logger.info(f"Contract {contract_id} is now finished. Profit/Loss: {profit} | Daily P&L: {self.daily_pnl}")
 
                 if contract_id in self.active_contracts:
                     try:
@@ -189,15 +192,55 @@ class TradingBot:
         except Exception as e:
             self.logger.exception("Error processing contract update")
 
+    async def _get_dynamic_stake(self):
+        """Calculate dynamic stake based on account balance."""
+        try:
+            balance_response = await self.api.balance()
+            if 'error' in balance_response:
+                self.logger.error(f"Error fetching balance: {balance_response['error']['message']}")
+                return MIN_STAKE_AMOUNT
+                
+            balance = float(balance_response['balance']['balance'])
+            stake = balance * DYNAMIC_STAKE_PERCENT
+            
+            # Ensure stake is within allowed limits
+            stake = max(stake, MIN_STAKE_AMOUNT)
+            stake = min(stake, MAX_STAKE_AMOUNT)
+            
+            return round(stake, 2)
+        except Exception as e:
+            self.logger.error(f"Error calculating dynamic stake: {e}")
+            return MIN_STAKE_AMOUNT
+
+    async def _check_daily_limits(self):
+        """Check if daily loss limit has been reached."""
+        current_date = datetime.now().date()
+        if current_date > self.last_pnl_reset:
+            self.daily_pnl = 0.0
+            self.last_pnl_reset = current_date
+            self.logger.info("Daily P&L reset for new trading day")
+            
+        if self.daily_pnl < -MAX_DAILY_LOSS:
+            self.logger.warning(f"Daily loss limit of ${MAX_DAILY_LOSS} reached. No new trades allowed.")
+            return False
+        return True
+
     async def _execute_trade(self, signal, current_price):
         """Execute a trade based on the signal."""
         try:
+            # Check daily loss limit before trading
+            if not await self._check_daily_limits():
+                return
+
+            # Calculate dynamic stake amount
+            stake_amount = await self._get_dynamic_stake()
+            
             if signal == BUY:
                 # CALL option - prediction that price will RISE
-                self.logger.info(f"BUY signal received. Requesting RISE (CALL) option proposal...")
+                self.logger.info(f"BUY signal received. Requesting RISE (CALL) option proposal with stake ${stake_amount}...")
                 proposal_response = await get_option_proposal(
                     self.api, INSTRUMENT, "CALL", OPTION_DURATION, OPTION_DURATION_UNIT, 
-                    CURRENCY, STAKE_AMOUNT, BASIS
+                    CURRENCY, stake_amount, BASIS
                 )
                 
                 if proposal_response and proposal_response.get('proposal'):
