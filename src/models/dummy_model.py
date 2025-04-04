@@ -1,26 +1,32 @@
+import numpy as np
+import pandas as pd
 import joblib
-import os
-from sklearn.linear_model import LogisticRegression
-import numpy as np # Import numpy for consistent data types
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
 
-# Create a dummy model
-dummy_model = LogisticRegression()
+# Create a simple dummy model and scaler for initial setup
+def create_dummy_model():
+    # Create a simple model that always predicts 0 (no trade)
+    model = RandomForestClassifier(n_estimators=10, random_state=42)
+    
+    # Create some dummy training data with the expected features
+    X = np.random.rand(100, 8)  # 8 features
+    y = np.zeros(100)  # All 0 predictions
+    
+    # Fit the model
+    model.fit(X, y)
+    
+    # Create and fit a scaler
+    scaler = StandardScaler()
+    scaler.fit(X)
+    
+    # Save both objects
+    joblib.dump(model, 'src/models/basic_predictor.joblib')
+    joblib.dump(scaler, 'src/models/scaler.joblib')
+    
+    print("Created and saved dummy model and scaler")
+    
+    return model, scaler
 
-# --- FIX: Provide dummy data with BOTH classes (0 and 1) ---
-# Dummy features (X): Need at least one sample per class
-dummy_X = np.array([[0, 0], [1, 1]]) 
-# Dummy labels (y): Corresponding labels for each sample
-dummy_y = np.array([0, 1]) 
-# ---------------------------------------------------------
-
-# Fit with the corrected dummy data
-dummy_model.fit(dummy_X, dummy_y)
-
-# Ensure directory exists
-model_dir = os.path.join('src', 'models')
-os.makedirs(model_dir, exist_ok=True)
-model_path = os.path.join(model_dir, 'basic_predictor.joblib')
-
-# Save the dummy model
-joblib.dump(dummy_model, model_path)
-print(f"Dummy model saved to {model_path}")
+if __name__ == "__main__":
+    create_dummy_model()

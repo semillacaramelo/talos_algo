@@ -1,104 +1,173 @@
 import asyncio
-from deriv_api import DerivAPI  # Adjust import based on actual library structure
+import json
+import websockets
 from config.settings import API_TOKEN, APP_ID
 from src.utils.logger import setup_logger
 
 # Set up logger globally
 logger = setup_logger()
 
+# Create a wrapper class for Deriv API with async functionality using WebSockets
+class DerivAPIAsync:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.app_id = APP_ID
+        self.ws = None
+        self.connected = False
+        self.request_id = 1
+        self.pending_requests = {}
+        self.subscriptions = {}
+        self.websocket_url = "wss://ws.binaryws.com/websockets/v3"
+        
+    async def connect(self):
+        """Connect to Deriv API via WebSocket."""
+        if self.connected and self.ws:
+            logger.debug("Already connected to Deriv API")
+            return True
+            
+        try:
+            self.ws = await websockets.connect(self.websocket_url)
+            self.connected = True
+            
+            # Start listening for messages in a separate task
+            asyncio.create_task(self._listen_messages())
+            
+            # Authorize with API key
+            auth_response = await self._send_request({
+                "authorize": self.api_key,
+                "app_id": self.app_id
+            })
+            
+            if auth_response and not auth_response.get('error'):
+                logger.info("Successfully connected and authorized with Deriv API")
+                return True
+            else:
+                error_msg = auth_response.get('error', {}).get('message', 'Unknown error')
+                logger.error(f"Authorization failed: {error_msg}")
+                await self.disconnect()
+                return False
+                
+        except Exception as e:
+            logger.exception(f"Failed to connect to Deriv API: {e}")
+            self.ws = None
+            self.connected = False
+            return False
+            
+    async def _listen_messages(self):
+        """Listen for incoming messages on the WebSocket connection."""
+        try:
+            while self.connected and self.ws:
+                try:
+                    message = await self.ws.recv()
+                    message_json = json.loads(message)
+                    req_id = message_json.get('req_id')
+                    
+                    # Handle pending requests
+                    if req_id and req_id in self.pending_requests:
+                        self.pending_requests[req_id].set_result(message_json)
+                    
+                    # Handle subscriptions
+                    msg_type = message_json.get('msg_type')
+                    if msg_type in self.subscriptions:
+                        for callback in self.subscriptions.get(msg_type, []):
+                            asyncio.create_task(callback(message_json))
+                            
+                except websockets.exceptions.ConnectionClosed:
+                    logger.warning("WebSocket connection closed unexpectedly")
+                    self.connected = False
+                    break
+                except Exception as e:
+                    logger.exception(f"Error processing message: {e}")
+        except Exception as e:
+            logger.exception(f"Error in message listener: {e}")
+        finally:
+            self.connected = False
+            
+    async def _send_request(self, request_data):
+        """Send a request to the Deriv API and wait for a response."""
+        if not self.connected:
+            success = await self.connect()
+            if not success:
+                return {"error": {"message": "Failed to connect to API"}}
+                
+        req_id = self.request_id
+        self.request_id += 1
+        
+        request_data['req_id'] = req_id
+        future = asyncio.Future()
+        self.pending_requests[req_id] = future
+        
+        try:
+            await self.ws.send(json.dumps(request_data))
+            response = await asyncio.wait_for(future, timeout=30)
+            return response
+        except asyncio.TimeoutError:
+            logger.error(f"Request timed out: {request_data}")
+            return {"error": {"message": "Request timed out"}}
+        except Exception as e:
+            logger.exception(f"Error sending request: {e}")
+            return {"error": {"message": str(e)}}
+        finally:
+            if req_id in self.pending_requests:
+                del self.pending_requests[req_id]
+            
+    async def disconnect(self):
+        """Disconnect from Deriv API."""
+        if not self.connected or not self.ws:
+            return True
+            
+        try:
+            await self.ws.close()
+            self.connected = False
+            self.ws = None
+            self.pending_requests = {}
+            self.subscriptions = {}
+            logger.info("Disconnected from Deriv API")
+            return True
+        except Exception as e:
+            logger.exception(f"Error disconnecting from Deriv API: {e}")
+            return False
+            
+    async def proposal(self, request):
+        """Get a proposal from the API."""
+        return await self._send_request(request)
+        
+    async def buy(self, request):
+        """Buy a contract."""
+        return await self._send_request(request)
+        
+    async def subscribe(self, request):
+        """Subscribe to updates."""
+        response = await self._send_request(request)
+        
+        # For tick subscription, set up a subscription handler
+        if 'ticks' in request:
+            symbol = request['ticks']
+            msg_type = 'tick'
+            if msg_type not in self.subscriptions:
+                self.subscriptions[msg_type] = []
+                
+        return response
+        
+    async def add_subscription_handler(self, msg_type, callback):
+        """Add a callback handler for a specific message type."""
+        if msg_type not in self.subscriptions:
+            self.subscriptions[msg_type] = []
+        self.subscriptions[msg_type].append(callback)
+        
+    async def balance(self):
+        """Get account balance."""
+        return await self._send_request({"balance": 1, "account": "all"})
+
 # Define a default message handler
 async def default_message_handler(message):
+    """Handle incoming messages from the Deriv API."""
     # Log all incoming messages to see if ticks arrive here
     logger.debug(f"Default Handler Received Message: {message}")
     # Check if it's a tick message
     if message.get('msg_type') == 'tick':
         logger.info(f"Tick received via default handler: {message.get('tick')}")
     # Add handling for other message types if needed
-
-async def connect_deriv_api():
-    # Validate API_TOKEN
-    if not API_TOKEN:
-        logger.error("API_TOKEN is not set or invalid. Cannot connect to Deriv API.")
-        return None
-
-    # Instantiate DerivAPI object, potentially with a message handler
-    # Check deriv-api docs for the correct way to set a default handler
-    # This is a guess based on common patterns
-    try:
-        # Attempt 1: Pass handler during init (if supported)
-        # api = DerivAPI(app_id=APP_ID, on_message=default_message_handler)
-        # Attempt 2: Standard init, handler might be set later or automatically routed
-        api = DerivAPI(app_id=APP_ID)
-        # If the library requires explicit handler registration after init:
-        # api.register_message_handler(default_message_handler) # Example, check docs
-
-    except Exception as e:
-        logger.exception("Failed to instantiate DerivAPI")
-        return None
-
-    try:
-        logger.info("Attempting to connect to Deriv API...")
-        await api.authorize(API_TOKEN)
-        logger.info("Successfully connected and authorized with Deriv API.")
-        return api
-    except Exception as e:
-        logger.exception("Failed to connect/authorize with Deriv API")
-        # Ensure disconnection if partial connection occurred
-        if api and hasattr(api, 'disconnect'):
-            try:
-                await disconnect(api)
-            except Exception as disc_e:
-                logger.exception("Error during disconnection after failed auth")
-        return None
-
-async def disconnect(api):
-    """
-    Safely disconnect from the Deriv API.
-    
-    Parameters:
-        api: Connected Deriv API object.
-        
-    Returns:
-        bool: True if disconnection was successful, False otherwise.
-    """
-    if not api:
-        logger.warning("Cannot disconnect: API object is None")
-        return False
-        
-    try:
-        # Check if the connection is active before disconnecting
-        if hasattr(api, 'is_connected') and api.is_connected():
-            logger.info("Disconnecting from the Deriv API...")
-            
-            # Give any pending messages a moment to complete
-            await asyncio.sleep(0.5)
-            
-            # Ensure all subscriptions are cleared before disconnect
-            if hasattr(api, 'subscription_manager'):
-                try:
-                    await api.subscription_manager.unsubscribe_all()
-                    logger.info("All subscriptions cleared.")
-                except Exception as e:
-                    logger.warning(f"Error clearing subscriptions: {e}")
-            
-            # Ensure all pending coroutines are awaited
-            for _ in range(5):  # Allow for drain time to complete pending tasks
-                await asyncio.sleep(0.1)
-                
-            # Perform the actual disconnect
-            await api.disconnect()
-            
-            # Additional wait after disconnect to ensure everything is flushed
-            await asyncio.sleep(0.2)
-            
-            logger.info("Successfully disconnected from the Deriv API.")
-            return True
-        else:
-            logger.info("API connection already closed or not established.")
-            return False
-    except Exception as e:
-        logger.exception(f"Error during API disconnection: {e}")
-        return False
 
 async def get_option_proposal(api, instrument, contract_type, duration, duration_unit, currency, amount, basis):
     """
@@ -205,18 +274,15 @@ async def subscribe_to_contract_updates(api, contract_id, on_update_callback):
     Subscribe to real-time updates for a specific contract.
     
     Parameters:
-        api: Connected Deriv API object.
+        api: Connected DerivAPIAsync object.
         contract_id (str/int): The ID of the contract to monitor.
         on_update_callback (callable): Function to handle update messages.
         
     Returns:
-        object: The disposable subscription object, or None on error.
+        bool: True if subscription was successful, False otherwise.
     """
     try:
         logger.info(f"Attempting to subscribe to contract updates for contract ID: {contract_id}")
-        
-        # Access the subscription manager
-        manager = api.subscription_manager
         
         # Construct the subscription request
         request = {
@@ -224,32 +290,25 @@ async def subscribe_to_contract_updates(api, contract_id, on_update_callback):
             "contract_id": contract_id
         }
         
-        # Subscribe using the manager - returns an Observable
-        observable = await manager.subscribe(request)
+        # Subscribe and get the response
+        response = await api.subscribe(request)
         
-        # Define observer callbacks
-        def on_error(error):
-            logger.error(f"Observable error for contract {contract_id}: {error}")
+        if 'error' in response:
+            logger.error(f"Contract subscription error: {response['error']['message']}")
+            return False
             
-        def on_completed():
-            logger.info(f"Observable stream for contract {contract_id} completed.")
+        # Set up a message handler for contract updates
+        subscription_msg_type = "proposal_open_contract"
         
-        # Define the wrapper callback for on_next that schedules the async callback
-        def _on_next_wrapper(message):
-            asyncio.create_task(on_update_callback(message))
-        
-        # Add our observer to the Observable using the wrapper
-        disposable = observable.subscribe(
-            on_next=_on_next_wrapper,
-            on_error=on_error,
-            on_completed=on_completed
+        # Register the subscription handler
+        await api.add_subscription_handler(
+            subscription_msg_type, 
+            on_update_callback
         )
         
         logger.info(f"Successfully initiated subscription for contract ID: {contract_id}")
-        
-        # Return the disposable for later cleanup
-        return disposable
+        return True
         
     except Exception as e:
         logger.exception(f"Error subscribing to contract updates for contract ID: {contract_id}")
-        return None
+        return False

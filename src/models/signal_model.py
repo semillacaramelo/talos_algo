@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import pandas_ta as ta
 from joblib import load
 from typing import Tuple, Optional, List, Union
 import numpy as np
@@ -33,22 +32,38 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         df['ma_slow'] = df['close'].rolling(window=20).mean()
         df['ma_diff'] = (df['ma_fast'] - df['ma_slow']) / df['close']
 
-        # RSI
-        df['rsi'] = ta.rsi(df['close'], length=14)
+        # Calculate RSI
+        # First calculate price differences
+        delta = df['close'].diff()
+        # Split gains (up) and losses (down)
+        up = delta.clip(lower=0)
+        down = -1 * delta.clip(upper=0)
+        # Calculate averages
+        avg_gain = up.rolling(window=14).mean()
+        avg_loss = down.rolling(window=14).mean()
+        # Calculate RS and RSI
+        rs = avg_gain / avg_loss
+        df['rsi'] = 100 - (100 / (1 + rs))
 
-        # ATR
-        atr = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['atr'] = atr / df['close']  # Normalized ATR
+        # Calculate ATR (Simplified version)
+        high_low = df['high'] - df['low']
+        high_close = abs(df['high'] - df['close'].shift())
+        low_close = abs(df['low'] - df['close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        df['atr'] = true_range.rolling(14).mean() / df['close']
 
-        # Stochastic
-        stoch = ta.stoch(df['high'], df['low'], df['close'], k=14, d=3)
-        df['stoch_k'] = stoch['STOCHk_14_3_3']
-        df['stoch_d'] = stoch['STOCHd_14_3_3']
+        # Calculate Stochastic (Simplified version)
+        low_min = df['low'].rolling(window=14).min()
+        high_max = df['high'].rolling(window=14).max()
+        df['stoch_k'] = 100 * ((df['close'] - low_min) / (high_max - low_min))
+        df['stoch_d'] = df['stoch_k'].rolling(window=3).mean()
 
-        # MACD
-        macd = ta.macd(df['close'])
-        df['macd'] = macd['MACD_12_26_9']
-        df['macd_signal'] = macd['MACDs_12_26_9']
+        # Calculate MACD (Moving Average Convergence Divergence)
+        exp1 = df['close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = exp1 - exp2
+        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
 
         # Drop rows with NaN values after calculations
         df = df.dropna()

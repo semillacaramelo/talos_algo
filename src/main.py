@@ -15,8 +15,11 @@ from config.settings import (
 )
 
 class TradingBot:
-    def __init__(self, api_key: str):
-        self.api = DerivAPIAsync(api_key)
+    def __init__(self, api_key: str = None):
+        # Use API_TOKEN from settings if no api_key provided
+        from config.settings import API_TOKEN
+        self.api_key = api_key or API_TOKEN
+        self.api = DerivAPIAsync(self.api_key)
         self.active_contracts: Dict[str, dict] = {}
         self.recent_ticks_deque = deque(maxlen=50)  # Store more points than needed
         self.daily_pnl = 0.0
@@ -63,6 +66,11 @@ class TradingBot:
     async def handle_tick(self, tick_data: dict):
         """Process new tick data and potentially execute trades."""
         try:
+            # Validate tick_data structure
+            if not tick_data or 'tick' not in tick_data:
+                print("Invalid tick data received")
+                return
+                
             # Update tick history
             self.recent_ticks_deque.append({
                 'timestamp': tick_data['tick']['epoch'],
@@ -76,6 +84,14 @@ class TradingBot:
             if not await self._check_trading_limits():
                 return
 
+            # For now, simply log the tick data for debugging
+            print(f"Received tick: {tick_data['tick']['symbol']} = {tick_data['tick']['quote']}")
+            
+            # Just for testing, we won't attempt to trade yet
+            return
+            
+            # The following code is commented out until we've validated basic functionality
+            """
             # Convert deque to DataFrame for analysis
             df = pd.DataFrame(list(self.recent_ticks_deque))
 
@@ -89,33 +105,36 @@ class TradingBot:
 
             # Execute trade based on signal
             if signal == "BUY":
-                proposal = await self.api.get_option_proposal(
-                    contract_type="CALL",
-                    duration=OPTION_DURATION,
-                    duration_unit=OPTION_DURATION_UNIT,
-                    currency=CURRENCY,
-                    amount=stake_amount,
-                    basis=BASIS
-                )
+                contract_type = "CALL"
             else:  # SELL signal
-                proposal = await self.api.get_option_proposal(
-                    contract_type="PUT",
-                    duration=OPTION_DURATION,
-                    duration_unit=OPTION_DURATION_UNIT,
-                    currency=CURRENCY,
-                    amount=stake_amount,
-                    basis=BASIS
-                )
+                contract_type = "PUT"
+                
+            # Prepare proposal request
+            from config.settings import INSTRUMENT, OPTION_DURATION, OPTION_DURATION_UNIT, BASIS, CURRENCY
+            proposal_request = {
+                "proposal": 1,
+                "amount": stake_amount,
+                "basis": BASIS,
+                "contract_type": contract_type,
+                "currency": CURRENCY,
+                "duration": OPTION_DURATION,
+                "duration_unit": OPTION_DURATION_UNIT,
+                "symbol": INSTRUMENT,
+            }
+            
+            # Get proposal
+            proposal = await self.api.proposal(proposal_request)
 
             if not proposal or 'error' in proposal:
                 print(f"Proposal error: {proposal.get('error', {}).get('message', 'Unknown error')}")
                 return
 
             # Buy contract
-            buy_response = await self.api.buy_contract(
-                proposal_id=proposal['proposal']['id'],
-                price=proposal['proposal']['ask_price']
-            )
+            buy_request = {
+                "buy": proposal['proposal']['id'],
+                "price": proposal['proposal']['ask_price']
+            }
+            buy_response = await self.api.buy(buy_request)
 
             if 'error' in buy_response:
                 print(f"Buy error: {buy_response['error']['message']}")
@@ -130,10 +149,25 @@ class TradingBot:
             }
 
             # Subscribe to contract updates
-            await self.api.subscribe_to_contract(
-                contract_id,
-                self.handle_contract_update
+            contract_subscription_request = {
+                "proposal_open_contract": 1,
+                "contract_id": contract_id
+            }
+            
+            # Subscribe to contract updates directly
+            from src.api.deriv_api_handler import subscribe_to_contract_updates
+            
+            # Define async handler
+            async def contract_update_handler(message):
+                await self.handle_contract_update(message)
+                
+            # Set up subscription
+            await subscribe_to_contract_updates(
+                self.api, 
+                contract_id, 
+                contract_update_handler
             )
+            """
 
         except Exception as e:
             print(f"Error in handle_tick: {e}")
@@ -155,31 +189,55 @@ class TradingBot:
         except Exception as e:
             print(f"Error in handle_contract_update: {e}")
 
+    def get_status(self):
+        """Get the current status of the trading bot."""
+        return {
+            'is_running': getattr(self, 'is_running', False),
+            'active_contracts': len(self.active_contracts)
+        }
+        
+    async def start(self):
+        """Start the trading bot."""
+        if getattr(self, 'is_running', False):
+            return False
+            
+        self.is_running = True
+        # Start the bot in a separate task
+        asyncio.create_task(self.run())
+        return True
+        
+    async def stop(self):
+        """Stop the trading bot."""
+        self.is_running = False
+        return True
+        
     async def run(self):
         """Main bot execution loop."""
         try:
             await self.initialize()
 
             # Subscribe to price feed
-            await self.api.subscribe_to_ticks(
-                "frxEURUSD",
-                self.handle_tick
+            from config.settings import INSTRUMENT
+            await self.api.subscribe(
+                {
+                    "ticks": INSTRUMENT,
+                }
             )
 
             # Keep the bot running
-            while True:
+            while getattr(self, 'is_running', False):
                 await asyncio.sleep(1)
 
         except Exception as e:
             print(f"Error in run: {e}")
         finally:
             # Cleanup
-            for contract_id in list(self.active_contracts.keys()):
-                try:
-                    await self.api.unsubscribe_from_contract(contract_id)
-                except:
-                    pass
-            await self.api.disconnect()
+            try:
+                # Simply disconnect - our DerivAPIAsync class will clean up subscriptions
+                await self.api.disconnect()
+                print("API connection closed and cleaned up")
+            except Exception as e:
+                print(f"Error in cleanup: {e}")
 
 if __name__ == "__main__":
     bot = TradingBot(os.getenv("DERIV_API_TOKEN"))

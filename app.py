@@ -2,45 +2,66 @@
 import os
 import logging
 import asyncio
+from functools import wraps
 from flask import Flask, render_template, jsonify, Response
-from src.utils.logger import get_recent_logs
+from src.utils.logger import get_recent_logs, setup_logger
 from src.main import TradingBot
 from config.settings import (INSTRUMENT, TIMEFRAME_SECONDS, OPTION_DURATION, 
                            OPTION_DURATION_UNIT, STAKE_AMOUNT, CURRENCY)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 # Create the Flask application
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "default-secret-key")
 
+# Set up asyncio event loop
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+# Helper function to run async functions in Flask routes
+def async_route(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        return asyncio.run_coroutine_threadsafe(f(*args, **kwargs), loop).result()
+    return decorated_function
+
 # Create single bot instance
 bot = TradingBot()
+# Initialize bot status variables
+bot.is_running = False
 
 @app.route('/')
 def index():
     """Render the main trading bot control panel."""
-    logger.debug("Rendering index page")
+    logger.info("Rendering index page")
     return render_template('index.html')
 
 @app.route('/start_bot')
-def start_bot():
+@async_route
+async def start_bot():
     """Start the trading bot if not already running."""
+    logger.info("Received start bot request")
     status = bot.get_status()
     if status['is_running']:
-        return jsonify({"status": "Bot already running"})
+        logger.info("Bot already running")
+        return {"status": "Bot already running"}
     
-    # Create task to start bot asynchronously
-    asyncio.create_task(bot.start())
-    return jsonify({"status": "Bot started"})
+    # Start bot
+    success = await bot.start()
+    logger.info(f"Bot start initiated: {success}")
+    return {"status": "Bot started"}
 
 @app.route('/stop_bot')
-def stop_bot():
+@async_route
+async def stop_bot():
     """Stop the trading bot."""
-    asyncio.run(bot.stop())
-    return jsonify({"status": "Bot stopped"})
+    logger.info("Received stop bot request")
+    success = await bot.stop()
+    logger.info(f"Bot stop initiated: {success}")
+    return {"status": "Bot stopping"}
 
 @app.route('/stream_logs')
 def stream_logs():
@@ -64,13 +85,9 @@ def get_status():
     
     # Get balance if API is connected
     balance = "N/A"
-    if bot.is_running and bot.api:
-        try:
-            balance_result = asyncio.run(bot.api.balance())
-            if balance_result and 'balance' in balance_result:
-                balance = f"{balance_result['balance']} {CURRENCY}"
-        except Exception as e:
-            logger.error(f"Error fetching balance: {e}")
+    # We can't use asyncio in a Flask route directly
+    # This is just a placeholder - we'll need to design a better solution later
+    # For now, just return N/A for balance
     
     return jsonify({
         "status": "Running" if status['is_running'] else "Idle",
@@ -82,6 +99,16 @@ def get_status():
             "stake": f"{STAKE_AMOUNT} {CURRENCY}"
         }
     })
+
+# Start background tasks in a proper way
+def start_background_loop():
+    global loop
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+import threading
+thread = threading.Thread(target=start_background_loop, daemon=True)
+thread.start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
