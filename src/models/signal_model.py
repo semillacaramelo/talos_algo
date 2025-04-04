@@ -1,72 +1,119 @@
 import os
-import joblib
-import numpy as np
 import pandas as pd
-import pandas_ta as ta
-from typing import Tuple, Optional
+from joblib import load
+from typing import Tuple, Optional, List, Union
+import numpy as np
 
-# Feature columns used by the model
+# Features used by the model
 FEATURE_COLUMNS = [
-    'price_diff', 'ma_diff', 'rsi', 'atr',
-    'STOCHk_14_3_3', 'STOCHd_14_3_3',
-    'MACD_12_26_9', 'MACDh_12_26_9', 'MACDs_12_26_9'
+    'price_change', 'ma_diff', 'rsi', 'atr', 
+    'stoch_k', 'stoch_d', 'macd', 'macd_signal'
 ]
 
-def train_or_load_model() -> Tuple[Optional[object], Optional[object]]:
-    model_path = os.path.join(os.path.dirname(__file__), 'basic_predictor.joblib')
-    scaler_path = os.path.join(os.path.dirname(__file__), 'scaler.joblib')
-
+def train_or_load_model(model_path: str = "", 
+                       scaler_path: str = "") -> Tuple[Optional[object], Optional[object]]:
+    """Load the trained model and scaler."""
+    # Use relative paths based on the current file location if none provided
+    if not model_path:
+        model_path = os.path.join(os.path.dirname(__file__), 'basic_predictor.joblib')
+    if not scaler_path:
+        scaler_path = os.path.join(os.path.dirname(__file__), 'scaler.joblib')
+    
     try:
-        model = joblib.load(model_path)
-        scaler = joblib.load(scaler_path)
+        model = load(model_path)
+        scaler = load(scaler_path)
         print("Successfully loaded ML model and scaler")
         return model, scaler
-    except:
-        print("Error loading model or scaler")
-        return None, None
+    except Exception as e:
+        print(f"Error loading model/scaler: {e}")
+        print("Attempting to create a new compatible dummy model...")
+        try:
+            # Import here to avoid circular imports
+            from src.models.dummy_model import create_dummy_model
+            return create_dummy_model()
+        except Exception as e2:
+            print(f"Failed to create dummy model: {e2}")
+            return None, None
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    # Price change
-    df['price_diff'] = df['close'].pct_change()
-
-    # Moving average difference
-    ma_period = 20
-    df['ma'] = df['close'].rolling(window=ma_period).mean()
-    df['ma_diff'] = (df['close'] - df['ma']) / df['close']
-
-    # RSI
-    df['rsi'] = ta.rsi(df['close'], length=14)
-
-    # ATR
-    df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-
-    # Stochastic Oscillator
-    stoch = ta.stoch(df['high'], df['low'], df['close'], k=14, d=3, append=True)
-    df = pd.concat([df, stoch], axis=1)
-
-    # MACD
-    macd = ta.macd(df['close'], fast=12, slow=26, signal=9, append=True)
-    df = pd.concat([df, macd], axis=1)
-
-    # Drop NaN values after calculating all features
-    df.dropna(inplace=True)
-
-    return df
-
-def generate_signal(df: pd.DataFrame, model_obj, scaler_obj) -> int:
+    """Calculate technical indicators for feature engineering."""
     try:
-        df = engineer_features(df.copy())
-        if df.empty or model_obj is None or scaler_obj is None:
-            return 0
+        # Basic price changes
+        df['price_change'] = df['close'].pct_change()
 
-        features = df[FEATURE_COLUMNS].iloc[-1:].values
-        scaled_features = scaler_obj.transform(features)
-        prediction = model_obj.predict(scaled_features)[0]
+        # Moving average difference
+        df['ma_fast'] = df['close'].rolling(window=5).mean()
+        df['ma_slow'] = df['close'].rolling(window=20).mean()
+        df['ma_diff'] = (df['ma_fast'] - df['ma_slow']) / df['close']
 
-        return 1 if prediction == 1 else -1
+        # Calculate RSI
+        # First calculate price differences
+        delta = df['close'].diff()
+        # Split gains (up) and losses (down)
+        up = delta.clip(lower=0)
+        down = -1 * delta.clip(upper=0)
+        # Calculate averages
+        avg_gain = up.rolling(window=14).mean()
+        avg_loss = down.rolling(window=14).mean()
+        # Calculate RS and RSI
+        rs = avg_gain / avg_loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+
+        # Calculate ATR (Simplified version)
+        high_low = df['high'] - df['low']
+        high_close = abs(df['high'] - df['close'].shift())
+        low_close = abs(df['low'] - df['close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        df['atr'] = true_range.rolling(14).mean() / df['close']
+
+        # Calculate Stochastic (Simplified version)
+        low_min = df['low'].rolling(window=14).min()
+        high_max = df['high'].rolling(window=14).max()
+        df['stoch_k'] = 100 * ((df['close'] - low_min) / (high_max - low_min))
+        df['stoch_d'] = df['stoch_k'].rolling(window=3).mean()
+
+        # Calculate MACD (Moving Average Convergence Divergence)
+        exp1 = df['close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = exp1 - exp2
+        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+
+        # Drop rows with NaN values after calculations
+        df = df.dropna()
+
+        return df
     except Exception as e:
-        print(f"Error generating signal: {str(e)}")
-        return 0
+        print(f"Error engineering features: {e}")
+        return pd.DataFrame()
+
+def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
+    """Generate trading signals using the ML model."""
+    try:
+        if len(recent_data) < 30:  # Minimum required points for feature calculation
+            return None
+
+        # Engineer features
+        df = engineer_features(recent_data.copy())
+        if df.empty:
+            return None
+
+        # Extract features for prediction
+        features = df[FEATURE_COLUMNS].iloc[-1:].values
+
+        # Scale features
+        if scaler:
+            features = scaler.transform(features)
+
+        # Make prediction
+        prediction = model.predict(features)[0]
+
+        # Map prediction to signal
+        return "BUY" if prediction == 1 else "SELL"
+
+    except Exception as e:
+        print(f"Error generating signal: {e}")
+        return None
 
 #Retain the original function, adapting it to use the new functions.
 def generate_signals_for_dataset(model_obj, scaler_obj, df):
@@ -89,7 +136,19 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
             print(f"Missing features: {missing_columns}")
             return result_signals
 
-        signals = feature_df.apply(lambda row: generate_signal(pd.DataFrame([row]), model_obj, scaler_obj), axis=1)
+        X = feature_df[FEATURE_COLUMNS]
+
+        if scaler_obj:
+            try:
+                X_scaled = scaler_obj.transform(X)
+            except Exception as e:
+                print(f"Scaling error: {e}")
+                return result_signals
+        else:
+            X_scaled = X
+
+        predictions = model_obj.predict(X_scaled)
+        signals = pd.Series(np.where(predictions == 1, 1, -1), index=feature_df.index)
         result_signals.update(signals)
 
         return result_signals
