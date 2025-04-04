@@ -1,0 +1,277 @@
+~/workspace$ python src/train_model.py 
+2025-04-04 21:42:05,229 - INFO - Starting model training pipeline...
+2025-04-04 21:42:05,273 - INFO - Connected to Deriv API with app ID: 1086
+2025-04-04 21:42:05,273 Connected to Deriv API with app ID: 1086
+2025-04-04 21:42:05,705 - INFO - Authorized with account: investsondvd@gmail.com
+2025-04-04 21:42:05,705 Authorized with account: investsondvd@gmail.com
+2025-04-04 21:42:05,706 - INFO - Fetching historical data chunk 1/2...
+2025-04-04 21:42:05,706 Fetching historical data chunk 1/2...
+2025-04-04 21:42:05,706 - INFO - Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:42:05,706 Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:42:07,840 - INFO - Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:42:07,840 Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:42:08,841 - INFO - Fetching historical data chunk 2/2...
+2025-04-04 21:42:08,841 Fetching historical data chunk 2/2...
+2025-04-04 21:42:08,842 - INFO - Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:42:08,842 Fetching historical data for R_100 with granularity 60 and count 5000...
+2025-04-04 21:42:10,922 - INFO - Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:42:10,922 Successfully fetched 5000 historical data points for R_100.
+2025-04-04 21:42:10,979 - INFO - Disconnected from Deriv API
+2025-04-04 21:42:10,979 Disconnected from Deriv API
+2025-04-04 21:42:10,982 - INFO - Successfully fetched 5000 historical data points
+2025-04-04 21:42:10,982 Successfully fetched 5000 historical data points
+/home/runner/workspace/src/models/signal_model.py:125: FutureWarning: The 'mad' method is deprecated and will be removed in a future version. To compute the same result, you may do `(df - df.mean()).abs().mean()`.
+  md = tp.rolling(window=20).apply(lambda x: pd.Series(x).mad())  # Mean deviation
+2025-04-04 21:42:12,803 - INFO - Feature data sample:
+2025-04-04 21:42:12,803 Feature data sample:
+2025-04-04 21:42:12,805 - INFO -     price_change   ma_diff  ...  cloud_strength  price_to_cloud
+51     -0.000526 -0.005333  ...       -0.002262       -0.006515
+52      0.000482 -0.005155  ...       -0.002424       -0.005948
+53     -0.000088 -0.004720  ...       -0.003193       -0.005652
+54     -0.001446 -0.004536  ...       -0.003207       -0.006533
+55      0.001706 -0.004046  ...       -0.004105       -0.004367
+
+[5 rows x 27 columns]
+2025-04-04 21:42:12,805     price_change   ma_diff  ...  cloud_strength  price_to_cloud
+51     -0.000526 -0.005333  ...       -0.002262       -0.006515
+52      0.000482 -0.005155  ...       -0.002424       -0.005948
+53     -0.000088 -0.004720  ...       -0.003193       -0.005652
+54     -0.001446 -0.004536  ...       -0.003207       -0.006533
+55      0.001706 -0.004046  ...       -0.004105       -0.004367
+
+[5 rows x 27 columns]
+2025-04-04 21:42:12,892 - INFO - Null values in features:
+2025-04-04 21:42:12,892 Null values in features:
+2025-04-04 21:42:12,893 - INFO - price_change       0
+ma_diff            0
+rsi                0
+atr                0
+stoch_k            0
+stoch_d            0
+macd               0
+macd_signal        0
+STOCHk_14_3_3      0
+STOCHd_14_3_3      0
+MACD_12_26_9       0
+MACDh_12_26_9      0
+MACDs_12_26_9      0
+bollinger_pct_b    0
+bollinger_width    0
+adx                0
+adx_pos            0
+adx_neg            0
+cci                0
+mfi                0
+obv_norm           0
+volatility         0
+ema_diff           0
+wma_diff           0
+ichimoku_diff      0
+cloud_strength     0
+price_to_cloud     0
+dtype: int64
+2025-04-04 21:42:12,893 price_change       0
+ma_diff            0
+rsi                0
+atr                0
+stoch_k            0
+stoch_d            0
+macd               0
+macd_signal        0
+STOCHk_14_3_3      0
+STOCHd_14_3_3      0
+MACD_12_26_9       0
+MACDh_12_26_9      0
+MACDs_12_26_9      0
+bollinger_pct_b    0
+bollinger_width    0
+adx                0
+adx_pos            0
+adx_neg            0
+cci                0
+mfi                0
+obv_norm           0
+volatility         0
+ema_diff           0
+wma_diff           0
+ichimoku_diff      0
+cloud_strength     0
+price_to_cloud     0
+dtype: int64
+/home/runner/workspace/src/train_model.py:100: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  feature_df['next_pct_change'] = feature_df['close'].pct_change(-1)  # Next candle's percent change
+/home/runner/workspace/src/train_model.py:107: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  feature_df['target'] = feature_df['next_pct_change'].apply(
+2025-04-04 21:42:12,910 - INFO - Starting hyperparameter optimization with GridSearchCV...
+2025-04-04 21:42:12,910 Starting hyperparameter optimization with GridSearchCV...
+Fitting 5 folds for each of 24 candidates, totalling 120 fits
+2025-04-04 21:43:41,379 - INFO - Best parameters found: {'class_weight': None, 'max_depth': 25, 'min_samples_split': 5, 'n_estimators': 300}
+2025-04-04 21:43:41,379 Best parameters found: {'class_weight': None, 'max_depth': 25, 'min_samples_split': 5, 'n_estimators': 300}
+2025-04-04 21:43:48,698 - INFO - 
+Random Forest Evaluation:
+2025-04-04 21:43:48,698 
+Random Forest Evaluation:
+2025-04-04 21:43:48,698 - INFO - Accuracy: 0.4972
+2025-04-04 21:43:48,698 Accuracy: 0.4972
+2025-04-04 21:43:48,698 - INFO - ROC AUC: 0.4907
+2025-04-04 21:43:48,698 ROC AUC: 0.4907
+2025-04-04 21:43:48,698 - INFO - PR AUC: 0.5093
+2025-04-04 21:43:48,698 PR AUC: 0.5093
+2025-04-04 21:43:48,706 - INFO - 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.49      0.49      0.49       357
+           1       0.50      0.50      0.50       363
+
+    accuracy                           0.50       720
+   macro avg       0.50      0.50      0.50       720
+weighted avg       0.50      0.50      0.50       720
+
+2025-04-04 21:43:48,706 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.49      0.49      0.49       357
+           1       0.50      0.50      0.50       363
+
+    accuracy                           0.50       720
+   macro avg       0.50      0.50      0.50       720
+weighted avg       0.50      0.50      0.50       720
+
+2025-04-04 21:43:48,711 - INFO - 
+Gradient Boosting Evaluation:
+2025-04-04 21:43:48,711 
+Gradient Boosting Evaluation:
+2025-04-04 21:43:48,711 - INFO - Accuracy: 0.4931
+2025-04-04 21:43:48,711 Accuracy: 0.4931
+2025-04-04 21:43:48,712 - INFO - ROC AUC: 0.4810
+2025-04-04 21:43:48,712 ROC AUC: 0.4810
+2025-04-04 21:43:48,712 - INFO - PR AUC: 0.4952
+2025-04-04 21:43:48,712 PR AUC: 0.4952
+2025-04-04 21:43:48,719 - INFO - 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.49      0.46      0.47       357
+           1       0.50      0.52      0.51       363
+
+    accuracy                           0.49       720
+   macro avg       0.49      0.49      0.49       720
+weighted avg       0.49      0.49      0.49       720
+
+2025-04-04 21:43:48,719 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.49      0.46      0.47       357
+           1       0.50      0.52      0.51       363
+
+    accuracy                           0.49       720
+   macro avg       0.49      0.49      0.49       720
+weighted avg       0.49      0.49      0.49       720
+
+2025-04-04 21:43:48,792 - INFO - 
+Extra Trees Evaluation:
+2025-04-04 21:43:48,792 
+Extra Trees Evaluation:
+2025-04-04 21:43:48,793 - INFO - Accuracy: 0.4972
+2025-04-04 21:43:48,793 Accuracy: 0.4972
+2025-04-04 21:43:48,793 - INFO - ROC AUC: 0.4856
+2025-04-04 21:43:48,793 ROC AUC: 0.4856
+2025-04-04 21:43:48,793 - INFO - PR AUC: 0.5061
+2025-04-04 21:43:48,793 PR AUC: 0.5061
+2025-04-04 21:43:48,801 - INFO - 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.49      0.51      0.50       357
+           1       0.50      0.49      0.49       363
+
+    accuracy                           0.50       720
+   macro avg       0.50      0.50      0.50       720
+weighted avg       0.50      0.50      0.50       720
+
+2025-04-04 21:43:48,801 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.49      0.51      0.50       357
+           1       0.50      0.49      0.49       363
+
+    accuracy                           0.50       720
+   macro avg       0.50      0.50      0.50       720
+weighted avg       0.50      0.50      0.50       720
+
+2025-04-04 21:43:49,044 - INFO - 
+Voting Ensemble Evaluation:
+2025-04-04 21:43:49,044 
+Voting Ensemble Evaluation:
+2025-04-04 21:43:49,044 - INFO - Accuracy: 0.4833
+2025-04-04 21:43:49,044 Accuracy: 0.4833
+2025-04-04 21:43:49,044 - INFO - ROC AUC: 0.4807
+2025-04-04 21:43:49,044 ROC AUC: 0.4807
+2025-04-04 21:43:49,044 - INFO - PR AUC: 0.5038
+2025-04-04 21:43:49,044 PR AUC: 0.5038
+2025-04-04 21:43:49,051 - INFO - 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.48      0.49      0.49       357
+           1       0.49      0.47      0.48       363
+
+    accuracy                           0.48       720
+   macro avg       0.48      0.48      0.48       720
+weighted avg       0.48      0.48      0.48       720
+
+2025-04-04 21:43:49,051 
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.48      0.49      0.49       357
+           1       0.49      0.47      0.48       363
+
+    accuracy                           0.48       720
+   macro avg       0.48      0.48      0.48       720
+weighted avg       0.48      0.48      0.48       720
+
+2025-04-04 21:43:49,111 - INFO - 
+Feature Importances:
+                 importance
+atr                0.045773
+obv_norm           0.044304
+volatility         0.043883
+price_change       0.043683
+adx_neg            0.041768
+ichimoku_diff      0.039495
+adx                0.039268
+ma_diff            0.039263
+adx_pos            0.038962
+bollinger_width    0.038462
+2025-04-04 21:43:49,111 
+Feature Importances:
+                 importance
+atr                0.045773
+obv_norm           0.044304
+volatility         0.043883
+price_change       0.043683
+adx_neg            0.041768
+ichimoku_diff      0.039495
+adx                0.039268
+ma_diff            0.039263
+adx_pos            0.038962
+bollinger_width    0.038462
+2025-04-04 21:43:49,707 - INFO - Model saved to src/models/basic_predictor.joblib
+2025-04-04 21:43:49,707 Model saved to src/models/basic_predictor.joblib
+2025-04-04 21:43:49,708 - INFO - Scaler saved to src/models/scaler.joblib
+2025-04-04 21:43:49,708 Scaler saved to src/models/scaler.joblib
+2025-04-04 21:43:49,713 - INFO - Model training pipeline completed successfully
+2025-04-04 21:43:49,713 Model training pipeline completed successfully

@@ -259,18 +259,72 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
-    """Generate trading signals using the ML model."""
+    """Generate trading signals using the ML model with improved features."""
     try:
-        if len(recent_data) < 30:  # Minimum required points for feature calculation
+        if len(recent_data) < 52:  # Minimum required points for Ichimoku calculation
+            print(f"Not enough data points for feature calculation: {len(recent_data)} (need 52+)")
             return None
 
         # Engineer features
         df = engineer_features(recent_data.copy())
         if df.empty:
+            print("Feature engineering resulted in empty DataFrame")
             return None
+            
+        # Get currently selected features for the model
+        try:
+            # Try to load the selected features list
+            import os
+            import joblib
+            features_path = os.path.join(os.path.dirname(__file__), 'selected_features.joblib')
+            threshold_path = os.path.join(os.path.dirname(__file__), 'threshold_stats.joblib')
+            
+            if os.path.exists(features_path):
+                selected_features = joblib.load(features_path)
+                print(f"Using {len(selected_features)} selected features for prediction")
+            else:
+                # If no selected features file exists, use all features
+                selected_features = FEATURE_COLUMNS
+                print("Using all features for prediction (no feature selection file found)")
+                
+            # Load threshold statistics if available
+            threshold_stats = None
+            if os.path.exists(threshold_path):
+                threshold_stats = joblib.load(threshold_path)
+                print(f"Using adaptive threshold with avg value: {threshold_stats['avg_threshold']:.6f}")
+            
+        except Exception as e:
+            print(f"Error loading selected features: {e}")
+            # If there's an error, use all features
+            selected_features = FEATURE_COLUMNS
+            threshold_stats = None
 
         # Extract features for prediction
-        features_df = df[FEATURE_COLUMNS].iloc[-1:]
+        available_features = [f for f in selected_features if f in df.columns]
+        
+        if len(available_features) < len(selected_features):
+            missing = set(selected_features) - set(available_features)
+            print(f"Warning: Missing {len(missing)} features: {missing}")
+            
+        if not available_features:
+            print("No valid features available for prediction")
+            return None
+            
+        features_df = df[available_features].iloc[-1:]
+        
+        # Calculate prediction confidence before converting to numpy array
+        # Check current volatility for adaptive threshold
+        if threshold_stats:
+            # Calculate current volatility
+            current_volatility = df['close'].pct_change().rolling(window=20).std().iloc[-1]
+            
+            # Determine current adaptive threshold
+            adaptive_threshold = max(
+                current_volatility * threshold_stats['volatility_multiplier'],
+                threshold_stats['min_threshold']
+            )
+            
+            print(f"Current volatility: {current_volatility:.6f}, Adaptive threshold: {adaptive_threshold:.6f}")
         
         # Convert to numpy array without feature names to avoid warnings
         features = features_df.values
@@ -279,11 +333,50 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
         if scaler:
             features = scaler.transform(features)
 
-        # Make prediction
-        prediction = model.predict(features)[0]
+        # Get prediction probability
+        try:
+            prediction_proba = model.predict_proba(features)[0]
+            confidence = max(prediction_proba)
+            prediction_class = 1 if prediction_proba[1] > prediction_proba[0] else 0
+            
+            # Stronger confidence requirement based on threshold
+            min_confidence = 0.55  # Can be adjusted
+            
+            if confidence < min_confidence:
+                print(f"Prediction confidence too low: {confidence:.4f} < {min_confidence}")
+                return None
+                
+            # Make prediction
+            prediction = prediction_class
+                
+        except AttributeError:
+            # If model doesn't have predict_proba, use regular predict
+            prediction = model.predict(features)[0]
 
-        # Map prediction to signal
-        return "BUY" if prediction == 1 else "SELL"
+        # Apply contextual logic based on price action
+        # Get latest price data
+        latest_close = df['close'].iloc[-1]
+        prev_close = df['close'].iloc[-2]
+        price_change = (latest_close - prev_close) / prev_close
+        
+        # Check for extreme price movements that might need caution
+        extreme_move_threshold = 0.005  # 0.5% change
+        
+        if abs(price_change) > extreme_move_threshold:
+            # In case of extreme movements, be more cautious
+            print(f"Extreme price movement detected: {price_change:.4f}")
+            
+            # Don't chase extreme movements in the same direction
+            if (prediction == 1 and price_change > extreme_move_threshold) or \
+               (prediction == 0 and price_change < -extreme_move_threshold):
+                print("Avoiding chasing extreme price movement")
+                return None
+        
+        # Map prediction to signal, including confidence
+        if prediction == 1:
+            return "BUY"
+        else:
+            return "SELL"
 
     except Exception as e:
         print(f"Error generating signal: {e}")
