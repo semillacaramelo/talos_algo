@@ -2,6 +2,8 @@
 import os
 import logging
 import asyncio
+import json
+import time
 from functools import wraps
 from flask import Flask, render_template, jsonify, Response
 from src.utils.logger import get_recent_logs, setup_logger
@@ -63,31 +65,32 @@ async def stop_bot():
     logger.info(f"Bot stop initiated: {success}")
     return {"status": "Bot stopping"}
 
-@app.route('/stream_logs')
-def stream_logs():
-    """Stream logs using Server-Sent Events"""
-    def generate():
-        last_id = 0
-        while True:
-            new_logs = get_recent_logs(last_id)
-            if new_logs:
-                last_id = len(get_recent_logs()) - 1
-                data = "data: " + jsonify(new_logs).get_data(as_text=True) + "\n\n"
-                yield data
-            yield ":\n\n"  # Keep-alive
+@app.route('/logs')
+def get_logs():
+    """Get recent logs as JSON"""
+    with app.app_context():
+        logs = get_recent_logs()
+        return jsonify(logs)
 
-    return Response(generate(), mimetype='text/event-stream')
+# Note: We're changing to a polling approach for compatibility with Gunicorn
+# We'll update the frontend to poll this endpoint instead of using SSE
 
 @app.route('/get_status')
-def get_status():
+@async_route
+async def get_status():
     """Get current bot status and configuration."""
     status = bot.get_status()
     
-    # Get balance if API is connected
+    # Get balance if API is connected and bot is running
     balance = "N/A"
-    # We can't use asyncio in a Flask route directly
-    # This is just a placeholder - we'll need to design a better solution later
-    # For now, just return N/A for balance
+    
+    if status['is_running'] and hasattr(bot, 'api') and bot.api.connected:
+        try:
+            balance_response = await bot.api.balance()
+            if balance_response and 'balance' in balance_response:
+                balance = f"{balance_response['balance']['currency']} {balance_response['balance']['balance']}"
+        except Exception as e:
+            logger.error(f"Error fetching balance: {e}")
     
     return jsonify({
         "status": "Running" if status['is_running'] else "Idle",

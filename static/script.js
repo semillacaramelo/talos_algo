@@ -63,20 +63,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateLogOutput(logs) {
         if (!logs || !logs.length) return;
         
-        let newContent = '';
         logs.forEach(log => {
-            if (!existingLogs.has(log)) {
-                existingLogs.add(log);
-                newContent += log + '\n';
+            const logEntry = `[${log.timestamp}] ${log.level}: ${log.message}`;
+            if (!existingLogs.has(logEntry)) {
+                existingLogs.add(logEntry);
+                logOutput.textContent += logEntry + '\n';
+                logOutput.scrollTop = logOutput.scrollHeight;
             }
         });
-        
-        // Append new logs to the existing content
-        if (newContent) {
-            logOutput.textContent += newContent;
-            // Auto-scroll to bottom
-            logOutput.scrollTop = logOutput.scrollHeight;
-        }
     }
 
     // Fetch and update status
@@ -89,28 +83,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Connect to log stream
-    function connectLogStream() {
-        const eventSource = new EventSource('/stream_logs');
-        
-        eventSource.onmessage = function(event) {
-            const logs = JSON.parse(event.data);
-            logs.forEach(log => {
-                const logEntry = `[${log.timestamp}] ${log.level}: ${log.message}`;
-                if (!existingLogs.has(logEntry)) {
-                    existingLogs.add(logEntry);
-                    logOutput.textContent += logEntry + '\n';
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                }
-            });
-        };
-
-        eventSource.onerror = function(error) {
-            console.error("Log stream error:", error);
-            eventSource.close();
-            // Attempt to reconnect after 5 seconds
-            setTimeout(connectLogStream, 5000);
-        };
+    // Fetch logs using polling instead of SSE
+    async function fetchLogs() {
+        const logs = await fetchFromAPI('/logs');
+        if (logs) {
+            updateLogOutput(logs);
+        }
+        // Poll again after 1 second
+        setTimeout(fetchLogs, 1000);
     }
 
     // Event listener for Start button
@@ -122,7 +102,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add to logs
             const logEntry = `[${new Date().toLocaleTimeString()}] ${data.status}`;
-            updateLogOutput([logEntry]);
+            logOutput.textContent += logEntry + '\n';
+            logOutput.scrollTop = logOutput.scrollHeight;
         }
     });
 
@@ -135,7 +116,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add to logs
             const logEntry = `[${new Date().toLocaleTimeString()}] ${data.status}`;
-            updateLogOutput([logEntry]);
+            logOutput.textContent += logEntry + '\n';
+            logOutput.scrollTop = logOutput.scrollHeight;
         }
     });
 
@@ -145,9 +127,9 @@ document.addEventListener('DOMContentLoaded', function() {
         existingLogs.clear();
     });
 
-    // Initial fetch and stream setup
+    // Initial fetch and logs setup
     fetchStatus();
-    connectLogStream();
+    fetchLogs();
 
     // Periodic status updates
     setInterval(fetchStatus, 5000);  // Every 5 seconds

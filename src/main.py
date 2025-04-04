@@ -15,10 +15,12 @@ from config.settings import (
 )
 
 class TradingBot:
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = ""):
         # Use API_TOKEN from settings if no api_key provided
         from config.settings import API_TOKEN
         self.api_key = api_key or API_TOKEN
+        if not self.api_key:
+            raise ValueError("API key is required. Set DERIV_DEMO_API_TOKEN environment variable.")
         self.api = DerivAPIAsync(self.api_key)
         self.active_contracts: Dict[str, dict] = {}
         self.recent_ticks_deque = deque(maxlen=50)  # Store more points than needed
@@ -26,6 +28,7 @@ class TradingBot:
         self.last_pnl_reset = datetime.now().date()
         self.model = None
         self.scaler = None
+        self.is_running = False
 
     async def initialize(self):
         """Initialize the bot by loading models and connecting to API."""
@@ -218,11 +221,19 @@ class TradingBot:
 
             # Subscribe to price feed
             from config.settings import INSTRUMENT
-            await self.api.subscribe(
-                {
-                    "ticks": INSTRUMENT,
-                }
-            )
+            from src.utils.logger import setup_logger
+            logger = setup_logger()
+            
+            # Define tick handling function
+            async def tick_callback(message):
+                if message and 'tick' in message:
+                    logger.info(f"Received tick: {message['tick']['symbol']} = {message['tick']['quote']}")
+                    await self.handle_tick(message)
+            
+            # Subscribe to ticks and register our callback
+            await self.api.subscribe({"ticks": INSTRUMENT})
+            await self.api.add_subscription_handler("tick", tick_callback)
+            logger.info(f"Successfully subscribed to ticks for {INSTRUMENT}")
 
             # Keep the bot running
             while getattr(self, 'is_running', False):
@@ -240,5 +251,7 @@ class TradingBot:
                 print(f"Error in cleanup: {e}")
 
 if __name__ == "__main__":
-    bot = TradingBot(os.getenv("DERIV_API_TOKEN"))
+    # Get API key from environment variable with default empty string
+    api_key = os.getenv("DERIV_API_TOKEN", "")
+    bot = TradingBot(api_key)
     asyncio.run(bot.run())
