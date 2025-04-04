@@ -87,14 +87,9 @@ class TradingBot:
             if not await self._check_trading_limits():
                 return
 
-            # For now, simply log the tick data for debugging
+            # Log the tick data for debugging
             print(f"Received tick: {tick_data['tick']['symbol']} = {tick_data['tick']['quote']}")
             
-            # Just for testing, we won't attempt to trade yet
-            return
-            
-            # The following code is commented out until we've validated basic functionality
-            """
             # Convert deque to DataFrame for analysis
             df = pd.DataFrame(list(self.recent_ticks_deque))
 
@@ -151,12 +146,6 @@ class TradingBot:
                 'entry_time': datetime.now()
             }
 
-            # Subscribe to contract updates
-            contract_subscription_request = {
-                "proposal_open_contract": 1,
-                "contract_id": contract_id
-            }
-            
             # Subscribe to contract updates directly
             from src.api.deriv_api_handler import subscribe_to_contract_updates
             
@@ -170,7 +159,6 @@ class TradingBot:
                 contract_id, 
                 contract_update_handler
             )
-            """
 
         except Exception as e:
             print(f"Error in handle_tick: {e}")

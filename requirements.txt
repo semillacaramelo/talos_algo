@@ -173,3 +173,15 @@ python-dotenv
 scikit-learn
 websockets==10.3
 numpy==1.24.0
+joblib
+numpy
+pandas
+pandas-ta
+scikit-learn
+websockets
+flask
+joblib
+numpy
+pandas
+scikit-learn
+websockets

@@ -58,9 +58,8 @@ def prepare_features_and_target(df):
         feature_df = feature_df.iloc[:-1]
         
         # Select features and target
-        X = feature_df[['price_change_1', 'price_change_5', 'ma_diff', 
-                       'RSI_14', 'ATRr_14', 'STOCHk_14_3_3', 'STOCHd_14_3_3',
-                       'MACD_12_26_9', 'MACDs_12_26_9']]
+        X = feature_df[['price_change', 'ma_diff', 'rsi', 'atr', 
+                       'stoch_k', 'stoch_d', 'macd', 'macd_signal']]
         y = feature_df['target']
         
         return X, y

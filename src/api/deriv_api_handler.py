@@ -8,6 +8,20 @@ from src.utils.logger import setup_logger
 logger = setup_logger()
 
 # Create a wrapper class for Deriv API with async functionality using WebSockets
+
+class DerivAPIWrapper:
+    """Wrapper class to simplify DerivAPIAsync usage"""
+    def __init__(self, api_key=API_TOKEN):
+        self.api_key = api_key
+        self.api = DerivAPIAsync(api_key)
+        
+    async def connect(self):
+        """Connect to the Deriv API"""
+        return await self.api.connect()
+        
+    async def disconnect(self):
+        """Disconnect from the Deriv API"""
+        return await self.api.disconnect()
 class DerivAPIAsync:
     def __init__(self, api_key):
         self.api_key = api_key

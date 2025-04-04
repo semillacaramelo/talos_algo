@@ -10,9 +10,14 @@ FEATURE_COLUMNS = [
     'stoch_k', 'stoch_d', 'macd', 'macd_signal'
 ]
 
-def train_or_load_model(model_path: str = 'src/models/basic_predictor.joblib',
-                       scaler_path: str = 'src/models/scaler.joblib') -> Tuple[Optional[object], Optional[object]]:
+def train_or_load_model(model_path: str = "", 
+                       scaler_path: str = "") -> Tuple[Optional[object], Optional[object]]:
     """Load the trained model and scaler."""
+    # Use relative paths based on the current file location if none provided
+    if not model_path:
+        model_path = os.path.join(os.path.dirname(__file__), 'basic_predictor.joblib')
+    if not scaler_path:
+        scaler_path = os.path.join(os.path.dirname(__file__), 'scaler.joblib')
     try:
         model = load(model_path)
         scaler = load(scaler_path)
