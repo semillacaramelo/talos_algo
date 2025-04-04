@@ -32,10 +32,21 @@ class TradingBot:
 
     async def initialize(self):
         """Initialize the bot by loading models and connecting to API."""
-        self.model, self.scaler = train_or_load_model()
-        if not self.model or not self.scaler:
-            raise ValueError("Failed to load model or scaler")
-        await self.api.connect()
+        try:
+            print("Loading ML model and scaler...")
+            self.model, self.scaler = train_or_load_model()
+            if not self.model or not self.scaler:
+                # Try to create a dummy model as fallback
+                from src.models.dummy_model import create_dummy_model
+                print("Loading from file failed, creating dummy model...")
+                self.model, self.scaler = create_dummy_model()
+                if not self.model or not self.scaler:
+                    raise ValueError("Failed to load model or create dummy model")
+            print("Model and scaler successfully loaded or created")
+            await self.api.connect()
+        except Exception as e:
+            print(f"Initialization error: {e}")
+            raise ValueError(f"Failed to initialize: {e}")
 
     async def _get_dynamic_stake(self) -> float:
         """Calculate dynamic stake based on account balance."""

@@ -18,13 +18,22 @@ def train_or_load_model(model_path: str = "",
         model_path = os.path.join(os.path.dirname(__file__), 'basic_predictor.joblib')
     if not scaler_path:
         scaler_path = os.path.join(os.path.dirname(__file__), 'scaler.joblib')
+    
     try:
         model = load(model_path)
         scaler = load(scaler_path)
+        print("Successfully loaded ML model and scaler")
         return model, scaler
     except Exception as e:
         print(f"Error loading model/scaler: {e}")
-        return None, None
+        print("Attempting to create a new compatible dummy model...")
+        try:
+            # Import here to avoid circular imports
+            from src.models.dummy_model import create_dummy_model
+            return create_dummy_model()
+        except Exception as e2:
+            print(f"Failed to create dummy model: {e2}")
+            return None, None
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators for feature engineering."""

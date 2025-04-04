@@ -1,0 +1,51 @@
+**PART 1: MANDATORY Backend Verification and Correction (Focus ONLY on `src/` directory files)**
+
+Execute the following analysis and correction steps sequentially. Verify each step before proceeding. If errors are found, implement fixes and re-verify.
+
+1.  **Verify Imports & Paths:**
+    - **Action:** Check all `.py` files within the `src/` directory (including subdirectories like `api`, `data`, `models`, `utils`).
+    - **Instruction:** Correct any `ModuleNotFoundError` by fixing relative/absolute imports or ensuring code assumes execution from the project root. Add necessary `sys.path` modifications ONLY if standard imports fail in the Replit environment.
+
+2.  **Verify ML Model Loading & Features (`src/models/signal_model.py`):**
+    - **Action:** Inspect `train_or_load_model`.
+    - **Instruction:** Confirm it correctly loads `basic_predictor.joblib` (RandomForest) and `scaler.joblib`. Ensure paths are correct (`os.path.join(os.path.dirname(__file__), 'models', ...)`). Confirm it returns `model, scaler` on success and handles `FileNotFoundError` and other exceptions gracefully (returning `None, None` or similar).
+    - **Action:** Inspect `engineer_features`.
+    - **Instruction:** **CRITICAL:** Ensure this function's calculations (price diff, MA diff, RSI, ATR, Stoch, MACD) **exactly match** the logic used in `src/train_model.py`. Correct any discrepancies. Verify `dropna()` is called *after* all features are added.
+    - **Action:** Inspect global `FEATURE_COLUMNS`.
+    - **Instruction:** Confirm this list **exactly matches** the features calculated by `engineer_features` and expected by the model.
+
+3.  **Verify ML Signal Generation (`src/models/signal_model.py`):**
+    - **Action:** Inspect `generate_signal`.
+    - **Instruction:** Confirm it receives `model_obj` and `scaler_obj`. Confirm it calls `engineer_features`. Confirm it uses `FEATURE_COLUMNS`. Confirm it applies `scaler_obj.transform()` (if scaler exists) *before* `model_obj.predict()`. Confirm prediction (0/1) is correctly mapped to SELL/BUY signals. **Remove ALL placeholder feature code/comments.** Ensure robust error handling.
+
+4.  **Verify Options Trading (`src/main.py` within `TradingBot` class / `handle_tick`):**
+    - **Action:** Inspect the logic triggered by BUY/SELL signals.
+    - **Instruction:** Confirm it calls `get_option_proposal` with correct `contract_type` ("CALL" for BUY, "PUT" for SELL). Confirm it extracts `proposal_id` and `ask_price` only on success. Confirm it calls `buy_option_contract` correctly.
+
+5.  **Verify Contract Monitoring:**
+    - **Action:** Inspect `subscribe_to_contract_updates` in `src/api/deriv_api_handler.py`.
+    - **Instruction:** Confirm it uses `asyncio.create_task` for the `on_next` callback to properly handle the async `handle_contract_update`.
+    - **Action:** Inspect `handle_contract_update` in `src/main.py`.
+    - **Instruction:** Confirm it correctly parses the message, checks `is_sold == 1`, logs info, finds the contract in `active_contracts`, calls `.dispose()` on the stored disposable, and removes the entry from `active_contracts`.
+
+6.  **Verify `TradingBot` Class Structure (`src/main.py`):**
+    - **Action:** Inspect the `TradingBot` class.
+    - **Instruction:** Ensure core logic is within `async def start(self)`, cleanup is in `async def stop(self)`, and state (`api`, `active_contracts`, `is_running`, `model`, `scaler`, `daily_pnl`, etc.) uses `self.`. Ensure `handle_tick` and `handle_contract_update` are methods of the class or can correctly access `self`.
+
+7.  **Backend Standalone Test:**
+    - **Action:** Temporarily add the following to the end of `src/main.py`:
+      ```python
+      if __name__ == "__main__":
+          print("Attempting backend standalone test...")
+          bot_instance = TradingBot()
+          try:
+              asyncio.run(bot_instance.start()) # Run start directly
+              # Add a short sleep if start() runs indefinitely in a loop
+              # asyncio.sleep(10) # e.g., run for 10 sec
+          except KeyboardInterrupt:
+              print("Interrupted.")
+          finally:
+              print("Stopping bot from standalone test...")
+              # Ensure stop is also run correctly
+              asyncio.run(bot_instance.stop()) 
+          print("Backend standalone test finished.")
