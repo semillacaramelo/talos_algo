@@ -259,16 +259,29 @@ class TradingBot:
         
         # Clean up the resources immediately rather than waiting
         try:
-            # Clean up tick subscription
+            # Clean up tick subscription - official Deriv API uses .dispose() not .unsubscribe()
             if hasattr(self, 'tick_subscription'):
-                self.tick_subscription.unsubscribe()
-                print("Unsubscribed from tick feed")
+                try:
+                    # First try the dispose method (official Deriv API)
+                    if hasattr(self.tick_subscription, 'dispose'):
+                        self.tick_subscription.dispose()
+                    # Fallback to unsubscribe (custom implementation)
+                    elif hasattr(self.tick_subscription, 'unsubscribe'):
+                        self.tick_subscription.unsubscribe()
+                    print("Unsubscribed from tick feed")
+                except Exception as e:
+                    print(f"Error unsubscribing from tick feed: {e}")
             
             # Clean up contract subscriptions
             for contract_id, contract_data in list(self.active_contracts.items()):
                 if 'subscription' in contract_data:
                     try:
-                        contract_data['subscription'].unsubscribe()
+                        # First try the dispose method (official Deriv API)
+                        if hasattr(contract_data['subscription'], 'dispose'):
+                            contract_data['subscription'].dispose()
+                        # Fallback to unsubscribe (custom implementation)
+                        elif hasattr(contract_data['subscription'], 'unsubscribe'):
+                            contract_data['subscription'].unsubscribe()
                         print(f"Unsubscribed from contract {contract_id}")
                     except Exception as e:
                         print(f"Error unsubscribing from contract {contract_id}: {e}")
@@ -277,6 +290,9 @@ class TradingBot:
             if hasattr(self, 'api') and self.api:
                 await self.api.disconnect()
                 print("API connection closed and cleaned up")
+                
+            # Wait a short time to ensure cleanup completes
+            await asyncio.sleep(0.2)
         except Exception as e:
             print(f"Error in cleanup during stop: {e}")
             
@@ -324,20 +340,38 @@ class TradingBot:
             try:
                 # Clean up tick subscription
                 if hasattr(self, 'tick_subscription'):
-                    self.tick_subscription.unsubscribe()
+                    try:
+                        # First try the dispose method (official Deriv API)
+                        if hasattr(self.tick_subscription, 'dispose'):
+                            self.tick_subscription.dispose()
+                        # Fallback to unsubscribe (custom implementation)
+                        elif hasattr(self.tick_subscription, 'unsubscribe'):
+                            self.tick_subscription.unsubscribe()
+                        print("Unsubscribed from tick feed")
+                    except Exception as e:
+                        print(f"Error unsubscribing from tick feed: {e}")
                 
                 # Clean up contract subscriptions
                 for contract_id, contract_data in list(self.active_contracts.items()):
                     if 'subscription' in contract_data:
                         try:
-                            contract_data['subscription'].unsubscribe()
+                            # First try the dispose method (official Deriv API)
+                            if hasattr(contract_data['subscription'], 'dispose'):
+                                contract_data['subscription'].dispose()
+                            # Fallback to unsubscribe (custom implementation)
+                            elif hasattr(contract_data['subscription'], 'unsubscribe'):
+                                contract_data['subscription'].unsubscribe()
                             print(f"Unsubscribed from contract {contract_id}")
                         except Exception as e:
                             print(f"Error unsubscribing from contract {contract_id}: {e}")
                 
                 # Disconnect from API
-                await self.api.disconnect()
-                print("API connection closed and cleaned up")
+                if hasattr(self, 'api') and self.api:
+                    await self.api.disconnect()
+                    print("API connection closed and cleaned up")
+                    
+                # Wait a short time to ensure cleanup completes
+                await asyncio.sleep(0.2)
             except Exception as e:
                 print(f"Error in cleanup: {e}")
 
