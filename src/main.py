@@ -46,10 +46,10 @@ class TradingBot:
         self.last_pnl_reset = datetime.now().date()
         self.model = None
         self.scaler = None
-        self.is_running = False
+        self.is_running = False  # Explicitly initialize to False
         
         # Enhanced logging attributes
-        self.last_signal = None
+        self.last_signal = "N/A"
         self.last_tick_price = None
         self.last_feature_count = None
         self.last_trade_time = None
@@ -57,23 +57,47 @@ class TradingBot:
         self.processed_ticks_count = 0
         self.feature_calculation_success = False
         self.signal_calculation_success = False
+        
+        # Additional tracking attributes for UI
+        self.feature_data_count = 0
+        self.win_count = 0
+        self.loss_count = 0
+        self.model_status = "Not Loaded"
+        
+        # Add a lock for thread-safe state checking
+        import threading
+        self._state_lock = threading.Lock()
+        
+    # Getter and setter for is_running with thread safety
+    def get_running_status(self):
+        with self._state_lock:
+            return self.is_running
+            
+    def set_running_status(self, status: bool):
+        with self._state_lock:
+            self.is_running = status
 
     async def initialize(self):
         """Initialize the bot by loading models and connecting to API."""
         try:
             print("Loading ML model and scaler...")
+            self.model_status = "Loading..."
             self.model, self.scaler = train_or_load_model()
             if not self.model or not self.scaler:
                 # Try to create a dummy model as fallback
                 from src.models.dummy_model import create_dummy_model
                 print("Loading from file failed, creating dummy model...")
+                self.model_status = "Creating Dummy Model..."
                 self.model, self.scaler = create_dummy_model()
                 if not self.model or not self.scaler:
+                    self.model_status = "Failed to Load"
                     raise ValueError("Failed to load model or create dummy model")
             print("Model and scaler successfully loaded or created")
+            self.model_status = "Loaded"
             await self.api.connect()
         except Exception as e:
             print(f"Initialization error: {e}")
+            self.model_status = "Error: " + str(e)
             raise ValueError(f"Failed to initialize: {e}")
 
     async def _get_dynamic_stake(self) -> float:
@@ -153,6 +177,9 @@ class TradingBot:
                 'low': tick_price,
                 'open': tick_price
             })
+            
+            # Update feature data count for UI
+            self.feature_data_count = len(self.recent_ticks_deque)
 
             # Check if we have enough data and can trade
             if not await self._check_trading_limits():
@@ -276,10 +303,17 @@ class TradingBot:
                 profit = float(update_data['proposal_open_contract']['profit'])
                 self.daily_pnl += profit
                 
+                # Update win/loss counters based on profit result
+                if profit > 0:
+                    self.win_count += 1
+                else:
+                    self.loss_count += 1
+                
                 # Update last trade time for UI display
                 self.last_trade_time = datetime.now()
 
                 print(f"Contract {contract_id} finished. Profit: ${profit:.2f}, Daily P&L: ${self.daily_pnl:.2f}")
+                print(f"Updated stats - Wins: {self.win_count}, Losses: {self.loss_count}")
                 
                 # Log more detailed trade info
                 contract_type = update_data['proposal_open_contract']['contract_type']
@@ -297,21 +331,69 @@ class TradingBot:
         except Exception as e:
             print(f"Error in handle_contract_update: {e}")
 
+    async def update_config(self, config_data):
+        """Update bot configuration during runtime."""
+        print(f"Updating bot configuration with: {config_data}")
+        
+        # Import settings to reference current values
+        from config.settings import (
+            INSTRUMENT, OPTION_DURATION, OPTION_DURATION_UNIT, 
+            STAKE_AMOUNT, CURRENCY, MAX_CONCURRENT_TRADES
+        )
+        
+        # Track which settings got updated
+        updated = []
+        
+        # Update instrument if provided (requires restart for tick subscription)
+        if 'instrument' in config_data and config_data['instrument']:
+            print(f"Note: Changing instrument from {INSTRUMENT} to {config_data['instrument']} requires bot restart")
+            updated.append('instrument')
+            
+        # Update stake amount if provided
+        if 'stake' in config_data and config_data['stake'] is not None:
+            try:
+                new_stake = float(config_data['stake'])
+                if new_stake > 0:
+                    print(f"Updated stake amount from {STAKE_AMOUNT} to {new_stake}")
+                    updated.append('stake')
+            except (ValueError, TypeError) as e:
+                print(f"Invalid stake value: {config_data['stake']} - {e}")
+        
+        # Update duration if provided
+        if 'duration' in config_data and config_data['duration'] is not None:
+            try:
+                new_duration = int(config_data['duration'])
+                print(f"Updated option duration from {OPTION_DURATION} to {new_duration}")
+                updated.append('duration')
+            except (ValueError, TypeError) as e:
+                print(f"Invalid duration value: {config_data['duration']} - {e}")
+                
+        # Update duration unit if provided
+        if 'duration_unit' in config_data and config_data['duration_unit']:
+            valid_units = ['t', 's', 'm', 'h', 'd']
+            if config_data['duration_unit'] in valid_units:
+                print(f"Updated duration unit from {OPTION_DURATION_UNIT} to {config_data['duration_unit']}")
+                updated.append('duration_unit')
+            else:
+                print(f"Invalid duration unit: {config_data['duration_unit']}")
+        
+        return updated
+
     def get_status(self):
         """Get the current status of the trading bot."""
         return {
-            'is_running': getattr(self, 'is_running', False),
+            'is_running': self.get_running_status(),
             'active_contracts': len(self.active_contracts)
         }
         
     async def start(self):
         """Start the trading bot."""
-        if getattr(self, 'is_running', False):
+        if self.get_running_status():
             return False
         
         # Record the start time for uptime tracking
         self.start_time = datetime.now()
-        self.is_running = True
+        self.set_running_status(True)
         self.processed_ticks_count = 0
         self.last_signal = None
         self.last_tick_price = None
@@ -324,7 +406,7 @@ class TradingBot:
     async def stop(self):
         """Stop the trading bot."""
         print("Stopping the trading bot...")
-        self.is_running = False
+        self.set_running_status(False)
         
         # Clean up the resources immediately rather than waiting
         try:
@@ -399,7 +481,7 @@ class TradingBot:
             logger.info(f"Successfully subscribed to ticks for {INSTRUMENT}")
 
             # Keep the bot running
-            while getattr(self, 'is_running', False):
+            while self.get_running_status():
                 await asyncio.sleep(1)
 
         except Exception as e:

@@ -94,6 +94,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (status === 'Running') {
             icon.classList.add('fa-play-circle');
+            // Disable start button, enable stop button
+            if (startButton) startButton.disabled = true;
+            if (stopButton) stopButton.disabled = false;
         } else if (status === 'Stopping' || status === 'Starting bot...') {
             icon.classList.add('fa-sync-alt');
             icon.style.animation = 'fa-spin 2s infinite linear';
@@ -101,6 +104,9 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.classList.add('fa-exclamation-circle');
         } else {
             icon.classList.add('fa-info-circle');
+            // Enable start button, disable stop button
+            if (startButton) startButton.disabled = false;
+            if (stopButton) stopButton.disabled = true;
         }
         
         statusDisplay.appendChild(icon);
@@ -121,9 +127,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update configuration display
     function updateConfigDisplay(config) {
-        instrumentValue.textContent = config.instrument || 'N/A';
-        durationValue.textContent = config.duration || 'N/A';
-        stakeValue.textContent = config.stake || 'N/A';
+        // If we have configurable inputs, update their values
+        if (window.instrumentInput) {
+            instrumentInput.value = config.instrument || '';
+        } else if (instrumentValue) {
+            instrumentValue.textContent = config.instrument || 'N/A';
+        }
+        
+        if (window.durationInput) {
+            durationInput.value = config.duration || '';
+        } else if (durationValue) {
+            durationValue.textContent = `${config.duration || '0'} ${config.duration_unit || 't'}`;
+        }
+        
+        if (window.durationUnitSelect) {
+            durationUnitSelect.value = config.duration_unit || 't';
+        }
+        
+        if (window.stakeInput) {
+            stakeInput.value = config.stake || '';
+        } else if (stakeValue) {
+            stakeValue.textContent = `${config.stake || '0'} ${config.currency || 'USD'}`;
+        }
         
         // Optional value update if the field exists
         if (maxTradesValue) {
@@ -131,39 +156,76 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Update live state display
-    function updateStateDisplay(balance, activeTrades, lastPrice, lastSignal, uptime, featureCount, lastTrade) {
-        if (balanceValue) balanceValue.textContent = balance || 'N/A';
-        if (activeTradesValue) activeTradesValue.textContent = activeTrades || '0';
-        if (lastPriceValue) lastPriceValue.textContent = lastPrice || 'N/A';
+    // Update live state display with all the enhanced data
+    function updateStateDisplay(data) {
+        // Basic data
+        if (balanceValue) balanceValue.textContent = data.balance || 'N/A';
+        if (activeTradesValue) activeTradesValue.textContent = data.active_trades || '0';
+        if (lastPriceValue) lastPriceValue.textContent = data.last_price || 'N/A';
+        
+        // Model status
+        if (window.modelStatusValue) {
+            modelStatusValue.textContent = data.model_status || 'N/A';
+            // Add color indicating status
+            modelStatusValue.className = 'badge';
+            if (data.model_status === 'Loaded') {
+                modelStatusValue.classList.add('bg-success');
+            } else if (data.model_status && data.model_status.includes('Error')) {
+                modelStatusValue.classList.add('bg-danger');
+            } else if (data.model_status === 'Loading...') {
+                modelStatusValue.classList.add('bg-warning');
+            } else {
+                modelStatusValue.classList.add('bg-secondary');
+            }
+        }
+        
+        // Model file
+        if (window.modelFileValue) {
+            modelFileValue.textContent = data.model_file || 'N/A';
+        }
         
         // Update last signal with appropriate styling
         if (lastSignalValue) {
-            lastSignalValue.textContent = lastSignal || 'N/A';
+            lastSignalValue.textContent = data.last_signal || 'N/A';
             lastSignalValue.className = 'badge';
             
-            if (lastSignal === 'BUY') {
+            if (data.last_signal === 'BUY') {
                 lastSignalValue.classList.add('bg-success');
-            } else if (lastSignal === 'SELL') {
+            } else if (data.last_signal === 'SELL') {
                 lastSignalValue.classList.add('bg-danger');
             } else {
                 lastSignalValue.classList.add('bg-secondary');
             }
         }
         
-        if (uptimeValue) uptimeValue.textContent = uptime || 'N/A';
-        if (featureCountValue) featureCountValue.textContent = featureCount || 'N/A';
-        if (lastTradeValue) lastTradeValue.textContent = lastTrade || 'N/A';
+        // Other status values
+        if (uptimeValue) uptimeValue.textContent = data.uptime || 'N/A';
+        if (featureCountValue) featureCountValue.textContent = data.feature_count || 'N/A';
+        if (lastTradeValue) lastTradeValue.textContent = data.last_trade || 'N/A';
         
-        // Calculate win rate if we have the data
+        // Update win/loss counts and win rate
+        if (window.winCount) winCount = data.win_count || 0;
+        if (window.lossCount) lossCount = data.loss_count || 0;
+        
+        // Calculate win rate
         if (winRateValue) {
-            const totalTrades = winCount + lossCount;
+            const totalTrades = (data.win_count || 0) + (data.loss_count || 0);
             if (totalTrades > 0) {
-                const rate = Math.floor((winCount / totalTrades) * 100);
+                const rate = Math.floor((data.win_count / totalTrades) * 100);
                 winRateValue.textContent = `${rate}%`;
             } else {
                 winRateValue.textContent = '0%';
             }
+        }
+        
+        // Update daily P&L if available
+        if (data.daily_pnl !== undefined && dailyPnlValue) {
+            const pnl = data.daily_pnl;
+            dailyPnlValue.textContent = pnl >= 0 ? 
+                `+$${pnl.toFixed(2)}` : 
+                `-$${Math.abs(pnl).toFixed(2)}`;
+            dailyPnlValue.className = 'stat-value';
+            dailyPnlValue.classList.add(pnl >= 0 ? 'text-success' : 'text-danger');
         }
     }
 
@@ -248,40 +310,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Fetch and update status
-    async function fetchStatus() {
-        const data = await fetchFromAPI('/get_status');
-        if (data) {
-            updateStatusDisplay(data.status);
-            updateConfigDisplay(data.config);
-            updateStateDisplay(
-                data.balance, 
-                data.active_trades, 
-                data.last_price, 
-                data.last_signal,
-                data.uptime,
-                data.feature_count,
-                data.last_trade
-            );
-            
-            // Update trades table if we have trade data
-            if (data.trades) {
-                currentTrades = data.trades;
-                updateTradesTable(data.trades);
-            }
-            
-            // Update daily P&L if available
-            if (data.daily_pnl !== undefined && dailyPnlValue) {
-                const pnl = data.daily_pnl;
-                dailyPnlValue.textContent = pnl >= 0 ? 
-                    `+$${pnl.toFixed(2)}` : 
-                    `-$${Math.abs(pnl).toFixed(2)}`;
-                dailyPnlValue.className = 'stat-value';
-                dailyPnlValue.classList.add(pnl >= 0 ? 'text-success' : 'text-danger');
-            }
-        }
-    }
-
     // Fetch logs using polling instead of SSE
     async function fetchLogs() {
         const logs = await fetchFromAPI('/logs');
@@ -290,6 +318,156 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // Poll again after 1 second
         setTimeout(fetchLogs, 1000);
+    }
+
+    // Fetch and update status
+    async function fetchStatus() {
+        const data = await fetchFromAPI('/get_status');
+        if (data) {
+            updateStatusDisplay(data.status);
+            updateConfigDisplay(data.config);
+            updateStateDisplay(data);
+            
+            // Update trades table if we have trade data
+            if (data.trades) {
+                currentTrades = data.trades;
+                updateTradesTable(data.trades);
+            }
+        }
+    }
+
+    // Implement Server-Sent Events (SSE) for log streaming
+    function setupLogStreaming() {
+        // Check if EventSource is supported
+        if (typeof EventSource === "undefined") {
+            console.warn("EventSource is not supported, falling back to polling");
+            fetchLogs();
+            return;
+        }
+        
+        const eventSource = new EventSource('/stream_logs');
+        
+        eventSource.onmessage = function(event) {
+            try {
+                const logData = JSON.parse(event.data);
+                updateLogOutput([logData]);
+            } catch (error) {
+                console.error("Error parsing log event:", error);
+            }
+        };
+        
+        eventSource.onerror = function(error) {
+            console.error("EventSource error:", error);
+            eventSource.close();
+            // Fall back to polling if SSE fails
+            setTimeout(() => {
+                console.log("Attempting to reconnect SSE...");
+                setupLogStreaming();
+            }, 5000);
+        };
+    }
+
+    // Initialize price chart
+    let priceChart = null;
+
+    function setupPriceChart() {
+        const ctx = document.getElementById('priceChart');
+        if (!ctx) return;
+        
+        // Check if Chart.js is loaded
+        if (typeof Chart === 'undefined') {
+            console.error("Chart.js is not loaded");
+            return;
+        }
+        
+        priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // x-axis labels (timestamps)
+                datasets: [{
+                    label: 'Price',
+                    data: [], // y-axis data (prices)
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    pointRadius: 1,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 10,
+                            maxRotation: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: false
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        enabled: true
+                    }
+                },
+                animation: {
+                    duration: 0 // Disable animation for better performance
+                }
+            }
+        });
+        
+        // Start updating chart data
+        fetchChartData();
+    }
+
+    // Fetch chart data from the server
+    async function fetchChartData() {
+        if (!priceChart) return;
+        
+        try {
+            const response = await fetch('/get_chart_data');
+            if (!response.ok) {
+                throw new Error('Failed to fetch chart data');
+            }
+            
+            const chartData = await response.json();
+            
+            if (chartData && chartData.length > 0) {
+                // Format the data for Chart.js
+                const times = chartData.map(point => {
+                    // Format timestamp to readable time (HH:MM:SS)
+                    const date = new Date(point.time * 1000);
+                    return date.toLocaleTimeString();
+                });
+                
+                const prices = chartData.map(point => point.price);
+                
+                // Limit data points for better performance
+                const maxPoints = 100;
+                if (times.length > maxPoints) {
+                    times.splice(0, times.length - maxPoints);
+                    prices.splice(0, times.length - maxPoints);
+                }
+                
+                // Update the chart data
+                priceChart.data.labels = times;
+                priceChart.data.datasets[0].data = prices;
+                priceChart.update();
+            }
+        } catch (error) {
+            console.error('Error fetching chart data:', error);
+        }
+        
+        // Schedule the next update
+        setTimeout(fetchChartData, 2000);
     }
 
     // Event listener for Start button
@@ -392,9 +570,85 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Add event listener for configuration settings
+    const applySettingsButton = document.getElementById('apply-settings-button');
+    if (applySettingsButton) {
+        applySettingsButton.addEventListener('click', async function() {
+            // Get values from inputs
+            const instrumentInput = document.getElementById('instrument-input');
+            const durationInput = document.getElementById('duration-input');
+            const durationUnitSelect = document.getElementById('duration-unit-select');
+            const stakeInput = document.getElementById('stake-input');
+            
+            // Validate inputs
+            if (!instrumentInput || !durationInput || !durationUnitSelect || !stakeInput) {
+                console.error("Configuration inputs not found");
+                return;
+            }
+            
+            // Create settings object
+            const settings = {
+                instrument: instrumentInput.value,
+                duration: parseInt(durationInput.value, 10),
+                duration_unit: durationUnitSelect.value,
+                stake: parseFloat(stakeInput.value)
+            };
+            
+            // Validate settings
+            let validationMessage = "";
+            if (!settings.instrument) validationMessage += "Instrument cannot be empty. ";
+            if (isNaN(settings.duration) || settings.duration <= 0) validationMessage += "Duration must be a positive number. ";
+            if (isNaN(settings.stake) || settings.stake <= 0) validationMessage += "Stake must be a positive number. ";
+            
+            if (validationMessage) {
+                alert("Validation error: " + validationMessage);
+                return;
+            }
+            
+            try {
+                // Send settings to server
+                const response = await fetch('/update_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                // Add log entry about settings update
+                const logEntry = `[${new Date().toLocaleTimeString()}] INFO: Settings updated: ${result.updated_settings ? result.updated_settings.join(', ') : 'none'}`;
+                if (!existingLogs.has(logEntry)) {
+                    existingLogs.add(logEntry);
+                    logOutput.textContent += logEntry + '\n';
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }
+                
+                // Show notification about restart if needed
+                if (result.restart_required) {
+                    alert("Settings updated. Bot restart required for changes to take full effect.");
+                } else {
+                    alert("Settings updated successfully!");
+                }
+                
+                // Refresh status to see updates
+                fetchStatus();
+                
+            } catch (error) {
+                console.error('Error updating settings:', error);
+                alert(`Error updating settings: ${error.message}`);
+            }
+        });
+    }
+
     // Initial fetch and logs setup
     fetchStatus();
-    fetchLogs();
+    setupLogStreaming();
 
     // Periodic status updates
     setInterval(fetchStatus, 5000);  // Every 5 seconds
@@ -454,4 +708,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Start the Chart.js initialization when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize price chart if the element exists
+        if (document.getElementById('priceChart')) {
+            // Load Chart.js from CDN if not already loaded
+            if (typeof Chart === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                script.onload = setupPriceChart;
+                document.head.appendChild(script);
+            } else {
+                setupPriceChart();
+            }
+        }
+    });
 });

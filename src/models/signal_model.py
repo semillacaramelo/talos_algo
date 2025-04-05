@@ -106,31 +106,56 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
 
         # Add enhanced technical indicators using pandas_ta
-        # Stochastic Oscillator (standard 14,3,3 periods)
-        df.ta.stoch(k=14, d=3, append=True)
-        
-        # MACD (standard 12,26,9 periods)
-        df.ta.macd(fast=12, slow=26, signal=9, append=True)
+        try:
+            # Stochastic Oscillator (standard 14,3,3 periods)
+            df.ta.stoch(k=14, d=3, append=True)
+            
+            # MACD (standard 12,26,9 periods)
+            df.ta.macd(fast=12, slow=26, signal=9, append=True)
+        except Exception as e:
+            logger.error(f"Error calculating basic pandas-ta indicators: {e}")
         
         # New Feature #1: Bollinger Bands
-        bb = df.ta.bbands(length=20, std=2)
-        # Extract middle, upper and lower bands
-        if not bb.empty:
-            df['bollinger_mid'] = bb[f'BBM_20_2.0']
-            df['bollinger_upper'] = bb[f'BBU_20_2.0']
-            df['bollinger_lower'] = bb[f'BBL_20_2.0']
-            # Calculate %B (percentage of price relative to the bands)
-            df['bollinger_pct_b'] = (df['close'] - df['bollinger_lower']) / (df['bollinger_upper'] - df['bollinger_lower'])
-            # Calculate bandwidth
-            df['bollinger_width'] = (df['bollinger_upper'] - df['bollinger_lower']) / df['bollinger_mid']
+        try:
+            bb = df.ta.bbands(length=20, std=2)
+            # Extract middle, upper and lower bands
+            if not bb.empty:
+                df['bollinger_mid'] = bb[f'BBM_20_2.0']
+                df['bollinger_upper'] = bb[f'BBU_20_2.0']
+                df['bollinger_lower'] = bb[f'BBL_20_2.0']
+                # Calculate %B (percentage of price relative to the bands)
+                df['bollinger_pct_b'] = (df['close'] - df['bollinger_lower']) / (df['bollinger_upper'] - df['bollinger_lower'])
+                # Calculate bandwidth
+                df['bollinger_width'] = (df['bollinger_upper'] - df['bollinger_lower']) / df['bollinger_mid']
+            else:
+                # Set default values if calculation failed
+                df['bollinger_pct_b'] = 0.5  # Middle of the band
+                df['bollinger_width'] = 0.1  # Neutral value
+        except Exception as e:
+            logger.error(f"Bollinger bands calculation error: {e}")
+            # Set default values
+            df['bollinger_pct_b'] = 0.5
+            df['bollinger_width'] = 0.1
         
         # New Feature #2: ADX (Average Directional Index)
-        adx = df.ta.adx(length=14)
-        if not adx.empty:
-            # Get ADX value and directional indicators
-            df['adx'] = adx[f'ADX_14']
-            df['adx_pos'] = adx[f'DMP_14']  # Positive directional movement
-            df['adx_neg'] = adx[f'DMN_14']  # Negative directional movement
+        try:
+            adx = df.ta.adx(length=14)
+            if not adx.empty:
+                # Get ADX value and directional indicators
+                df['adx'] = adx[f'ADX_14']
+                df['adx_pos'] = adx[f'DMP_14']  # Positive directional movement
+                df['adx_neg'] = adx[f'DMN_14']  # Negative directional movement
+            else:
+                # Set neutral values
+                df['adx'] = 25  # Neutral ADX value
+                df['adx_pos'] = 20  # Neutral
+                df['adx_neg'] = 20  # Neutral
+        except Exception as e:
+            logger.error(f"ADX calculation error: {e}")
+            # Set neutral values
+            df['adx'] = 25
+            df['adx_pos'] = 20
+            df['adx_neg'] = 20
         
         # New Feature #3: CCI (Commodity Channel Index)
         try:
@@ -157,47 +182,67 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             df['cci'] = 0  # Neutral value
         
         # New Feature #4: MFI (Money Flow Index) - volume weighted RSI
-        if 'volume' in df.columns:
-            try:
-                mfi = df.ta.mfi(length=14)
-                if not mfi.empty:
-                    df['mfi'] = mfi[f'MFI_14']
-                else:
-                    df['mfi'] = 50  # Neutral value for MFI
-            except Exception as e:
-                logger.error(f"MFI calculation error: {e}")
-                df['mfi'] = 50  # Neutral value
-        else:
-            # No volume data, use RSI as proxy for MFI
-            df['mfi'] = df['rsi']
+        try:
+            if 'volume' in df.columns:
+                try:
+                    mfi = df.ta.mfi(length=14)
+                    if not mfi.empty:
+                        df['mfi'] = mfi[f'MFI_14']
+                    else:
+                        df['mfi'] = 50  # Neutral value for MFI
+                except Exception as e:
+                    logger.error(f"MFI calculation error: {e}")
+                    df['mfi'] = 50  # Neutral value
+            else:
+                # No volume data, use RSI as proxy for MFI
+                df['mfi'] = df['rsi']
+        except Exception as e:
+            logger.error(f"MFI/RSI assignment error: {e}")
+            df['mfi'] = 50  # Default neutral value
         
         # New Feature #5: OBV (On-Balance Volume) - or proxy if volume not available
-        if 'volume' in df.columns:
-            try:
-                df['obv'] = df.ta.obv()
-                # Normalize OBV based on the last 20 periods
-                df['obv_norm'] = (df['obv'] - df['obv'].rolling(20).min()) / (df['obv'].rolling(20).max() - df['obv'].rolling(20).min())
-            except Exception as e:
-                logger.error(f"OBV calculation error: {e}")
-                # Use price momentum as a proxy
+        try:
+            if 'volume' in df.columns:
+                try:
+                    df['obv'] = df.ta.obv()
+                    # Normalize OBV based on the last 20 periods
+                    df['obv_norm'] = (df['obv'] - df['obv'].rolling(20).min()) / (df['obv'].rolling(20).max() - df['obv'].rolling(20).min())
+                except Exception as e:
+                    logger.error(f"OBV calculation error: {e}")
+                    # Use price momentum as a proxy
+                    df['obv_norm'] = df['price_change'].rolling(10).sum() / df['price_change'].rolling(10).std()
+            else:
+                # No volume data, use price momentum as proxy
                 df['obv_norm'] = df['price_change'].rolling(10).sum() / df['price_change'].rolling(10).std()
-        else:
-            # No volume data, use price momentum as proxy
-            df['obv_norm'] = df['price_change'].rolling(10).sum() / df['price_change'].rolling(10).std()
+            # Fill NaN values with neutral value
+            df['obv_norm'].fillna(0.5, inplace=True)
+        except Exception as e:
+            logger.error(f"OBV/momentum proxy error: {e}")
+            df['obv_norm'] = 0.5  # Default neutral value
         
         # New Feature #6: Volatility ratio (20-day vs 50-day)
-        df['vol_20'] = df['close'].pct_change().rolling(20).std()
-        df['vol_50'] = df['close'].pct_change().rolling(50).std()
-        # Handle divide by zero
-        df['volatility'] = df.apply(
-            lambda x: x['vol_20'] / x['vol_50'] if x['vol_50'] > 0 else 1.0, 
-            axis=1
-        )
+        try:
+            df['vol_20'] = df['close'].pct_change().rolling(20).std()
+            df['vol_50'] = df['close'].pct_change().rolling(50).std()
+            # Handle divide by zero
+            df['volatility'] = df.apply(
+                lambda x: x['vol_20'] / x['vol_50'] if x['vol_50'] > 0 else 1.0, 
+                axis=1
+            )
+            # Fill NaN values with neutral value
+            df['volatility'].fillna(1.0, inplace=True)
+        except Exception as e:
+            logger.error(f"Volatility calculation error: {e}")
+            df['volatility'] = 1.0  # Neutral value (equal volatility)
         
         # New Feature #7: EMA (Exponential Moving Average) difference
-        df['ema_fast'] = df['close'].ewm(span=12, adjust=False).mean()
-        df['ema_slow'] = df['close'].ewm(span=26, adjust=False).mean()
-        df['ema_diff'] = (df['ema_fast'] - df['ema_slow']) / df['close']
+        try:
+            df['ema_fast'] = df['close'].ewm(span=12, adjust=False).mean()
+            df['ema_slow'] = df['close'].ewm(span=26, adjust=False).mean()
+            df['ema_diff'] = (df['ema_fast'] - df['ema_slow']) / df['close']
+        except Exception as e:
+            logger.error(f"EMA calculation error: {e}")
+            df['ema_diff'] = 0  # Neutral value (no trend)
         
         # New Feature #8: WMA (Weighted Moving Average) difference
         try:
@@ -225,9 +270,12 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         except Exception as e:
             logger.error(f"WMA calculation error: {e}")
             # Fallback to SMA if WMA fails
-            df['wma_fast'] = df['close'].rolling(window=10).mean()
-            df['wma_slow'] = df['close'].rolling(window=30).mean()
-            df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
+            try:
+                df['wma_fast'] = df['close'].rolling(window=10).mean()
+                df['wma_slow'] = df['close'].rolling(window=30).mean()
+                df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
+            except Exception:
+                df['wma_diff'] = 0  # Neutral value (no trend)
         
         # New Feature #9: Ichimoku Cloud - Manual calculation
         try:
@@ -249,9 +297,6 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             low_52 = df['low'].rolling(window=52).min()
             df['senkou_span_b'] = ((high_52 + low_52) / 2)
             
-            # Chikou Span (Lagging Span): Current closing price (26 periods behind)
-            # We don't calculate this as it won't be used for the feature
-            
             # Calculate difference between Tenkan and Kijun as a feature
             df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
             
@@ -265,9 +310,12 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         except Exception as e:
             logger.error(f"Ichimoku calculation error: {e}")
             # Fallback calculation
-            df['tenkan'] = df['close'].rolling(window=9).mean()
-            df['kijun'] = df['close'].rolling(window=26).mean()
-            df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
+            try:
+                df['tenkan'] = df['close'].rolling(window=9).mean()
+                df['kijun'] = df['close'].rolling(window=26).mean()
+                df['ichimoku_diff'] = (df['tenkan'] - df['kijun']) / df['close']
+            except Exception:
+                df['ichimoku_diff'] = 0
             # Set additional features to neutral values
             df['cloud_strength'] = 0
             df['price_to_cloud'] = 0
@@ -294,11 +342,12 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
         SELL = "SELL" 
         HOLD = "HOLD"
     
+    # CRITICAL FIX: Check for minimum data points FIRST before any processing
+    if recent_data is None or len(recent_data) < MIN_FEATURE_POINTS:
+        logger.warning(f"Not enough data points for feature calculation: {len(recent_data) if recent_data is not None else 0} (need {MIN_FEATURE_POINTS}+)")
+        return Signal.HOLD
+    
     try:
-        if recent_data is None or len(recent_data) < MIN_FEATURE_POINTS:
-            logger.warning(f"Not enough data points for feature calculation: {len(recent_data) if recent_data is not None else 0} (need {MIN_FEATURE_POINTS}+)")
-            return Signal.HOLD
-        
         # Engineer features - only after checking min data points
         df = engineer_features(recent_data.copy())
         

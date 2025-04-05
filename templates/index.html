@@ -8,10 +8,13 @@
     <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" id="bootstrap-theme">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for price chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Dark Theme CSS (default) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" id="theme-css">
     <!-- Light Theme CSS (loaded conditionally by JavaScript) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='light-theme.css') }}" disabled id="light-theme-css">
+</head>
 <body>
     <!-- Top navigation bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -95,24 +98,40 @@
                         <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Configuration</h5>
                     </div>
                     <div class="card-body">
-                        <ul class="list-group list-group-flush">
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><i class="fas fa-chart-line me-2"></i>Instrument</span>
-                                <span id="instrument-value" class="badge bg-info">N/A</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><i class="fas fa-clock me-2"></i>Option Duration</span>
-                                <span id="duration-value" class="badge bg-info">N/A</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><i class="fas fa-coins me-2"></i>Stake Amount</span>
-                                <span id="stake-value" class="badge bg-info">N/A</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><i class="fas fa-exchange-alt me-2"></i>Concurrent Trades</span>
-                                <span id="max-trades-value" class="badge bg-info">3</span>
-                            </li>
-                        </ul>
+                        <div class="mb-3">
+                            <label for="instrument-input" class="form-label">Instrument</label>
+                            <input type="text" class="form-control" id="instrument-input" placeholder="e.g. R_50">
+                        </div>
+                        <div class="mb-3">
+                            <label for="duration-input" class="form-label">Duration</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="duration-input" placeholder="5">
+                                <select class="form-select" id="duration-unit-select">
+                                    <option value="t">Ticks</option>
+                                    <option value="s">Seconds</option>
+                                    <option value="m">Minutes</option>
+                                    <option value="h">Hours</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="stake-input" class="form-label">Stake Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="stake-input" placeholder="1.0" step="0.01">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Max Trades</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="max-trades-input" disabled>
+                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            </div>
+                            <small class="form-text text-muted">Change requires server restart</small>
+                        </div>
+                        <button id="apply-settings-button" class="btn btn-primary w-100">
+                            <i class="fas fa-save me-2"></i>Apply Settings
+                        </button>
                     </div>
                 </div>
             </div>
@@ -172,12 +191,7 @@
                             <div class="card-body">
                                 <!-- Placeholder for chart -->
                                 <div class="chart-container">
-                                    <div class="chart-placeholder d-flex justify-content-center align-items-center">
-                                        <div class="text-center">
-                                            <i class="fas fa-chart-line fa-3x mb-3"></i>
-                                            <p>Price chart will appear when bot is running</p>
-                                        </div>
-                                    </div>
+                                    <canvas id="priceChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -223,6 +237,14 @@
                     <div class="card-body">
                         <ul class="list-group list-group-flush">
                             <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>Model Status</span>
+                                <span id="model-status-value" class="badge bg-secondary">N/A</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>Model File</span>
+                                <span id="model-file-value" class="badge bg-secondary">N/A</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>Last Signal</span>
                                 <span id="last-signal-value" class="badge bg-secondary">N/A</span>
                             </li>
@@ -231,12 +253,12 @@
                                 <span id="last-price-value" class="badge bg-secondary">N/A</span>
                             </li>
                             <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>Last Trade</span>
-                                <span id="last-trade-value" class="badge bg-secondary">N/A</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>Feature Count</span>
                                 <span id="feature-count-value" class="badge bg-secondary">N/A</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>Last Trade</span>
+                                <span id="last-trade-value" class="badge bg-secondary">N/A</span>
                             </li>
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>Uptime</span>

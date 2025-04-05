@@ -1,8 +1,8 @@
-/* General Styles */
+/* Base styles */
 body {
-    background-color: #121212;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+    background-color: #1a1d21;
+    color: #e9ecef;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 /* Navbar styling */
@@ -25,15 +25,16 @@ body {
 
 /* Card styling */
 .card {
-    border: 1px solid #2a2a2a;
-    background-color: #1e1e1e;
-    border-radius: 6px;
+    background-color: #242729;
+    border: 1px solid #2d3035;
+    border-radius: 0.5rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     margin-bottom: 1.5rem;
-    transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .card:hover {
+    transform: translateY(-2px);
     box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
 }
 
@@ -42,9 +43,14 @@ body {
 }
 
 .card-header {
-    background-color: #252525;
-    border-bottom: 1px solid #333;
+    background-color: #2d3035;
+    border-bottom: 1px solid #3a3f44;
     padding: 0.75rem 1rem;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 1.25rem;
 }
 
 .list-group-item {
@@ -53,26 +59,28 @@ body {
     padding: 0.75rem 1rem;
 }
 
-/* Status indicator dot */
+/* Status indicator dots */
 .connection-dot {
+    display: inline-block;
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    display: inline-block;
+    margin-left: 8px;
 }
 
 .connection-dot.connected {
     background-color: #28a745;
-    box-shadow: 0 0 5px #28a745;
+    box-shadow: 0 0 8px #28a745;
 }
 
 .connection-dot.disconnected {
     background-color: #dc3545;
-    box-shadow: 0 0 5px #dc3545;
+    box-shadow: 0 0 8px #dc3545;
 }
 
-/* Stats styling */
+/* Stats cards */
 .stats-card {
+    background-color: #2d3035;
     border-radius: 6px;
     overflow: hidden;
 }
@@ -80,7 +88,7 @@ body {
 .stat-box {
     padding: 1rem;
     text-align: center;
-    border-right: 1px solid #333;
+    border-right: 1px solid #3a3f44;
 }
 
 .stat-box:last-child {
@@ -89,7 +97,7 @@ body {
 
 .stat-label {
     font-size: 0.85rem;
-    color: #aaa;
+    color: #adb5bd;
     margin-bottom: 0.5rem;
 }
 
@@ -99,70 +107,115 @@ body {
     color: #fff;
 }
 
-/* Chart container */
-.chart-container {
-    height: 300px;
-    background-color: #1a1a1a;
-    border-radius: 4px;
-    border: 1px solid #333;
+/* Buttons */
+.btn {
+    border-radius: 0.25rem;
+    font-weight: 500;
+    transition: all 0.2s;
 }
 
-.chart-placeholder {
-    height: 100%;
-    color: #666;
+.btn-success {
+    background-color: #2ea44f;
+    border-color: #2c974b;
 }
 
-/* Log Container */
+.btn-success:hover {
+    background-color: #2a9447;
+    border-color: #258b41;
+}
+
+.btn-danger {
+    background-color: #d73a49;
+    border-color: #cb2431;
+}
+
+.btn-danger:hover {
+    background-color: #c92a37;
+    border-color: #be222e;
+}
+
+.btn-primary {
+    background-color: #0366d6;
+    border-color: #0366d6;
+}
+
+.btn-primary:hover {
+    background-color: #0256b5;
+    border-color: #024da6;
+}
+
+/* Log container */
 .log-container {
-    height: 300px;
+    height: 250px;
     overflow-y: auto;
+    background-color: #1e2124;
+    border-radius: 0.25rem;
 }
 
 #log-output {
     height: 100%;
+    padding: 0.75rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: #d9d9d9;
+    background-color: transparent;
+    border: none;
+    overflow-y: auto;
     white-space: pre-wrap;
-    word-break: break-all;
-    color: #d0d0d0;
-    background-color: #1a1a1a;
-    border: 1px solid #333;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    padding: 1rem;
-    border-radius: 0;
 }
 
-/* Button styles */
-.btn-success {
-    background-color: #28a745;
-    border-color: #28a745;
-    transition: all 0.15s ease-in-out;
+/* Chart container */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
 }
 
-.btn-success:hover {
-    background-color: #218838;
-    border-color: #1e7e34;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+/* Table styling */
+.table {
+    margin-bottom: 0;
 }
 
-.btn-danger {
-    background-color: #dc3545;
-    border-color: #dc3545;
-    transition: all 0.15s ease-in-out;
+.table thead th {
+    background-color: #2d3035;
+    color: #e9ecef;
+    font-weight: 600;
+    border-top: none;
 }
 
-.btn-danger:hover {
-    background-color: #c82333;
-    border-color: #bd2130;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+.table tbody td {
+    padding: 0.75rem 1rem;
 }
 
-/* Status badges */
+.table-dark {
+    background-color: #242729;
+}
+
+/* Form input styling */
+.form-control, .form-select {
+    background-color: #1e2124;
+    border: 1px solid #3a3f44;
+    color: #e9ecef;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #1a1d21;
+    border-color: #0366d6;
+    box-shadow: 0 0 0 0.2rem rgba(3, 102, 214, 0.25);
+    color: #e9ecef;
+}
+
+.input-group-text {
+    background-color: #2d3035;
+    border: 1px solid #3a3f44;
+    color: #adb5bd;
+}
+
+/* Badge styling */
 .badge {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
-    border-radius: 4px;
+    padding: 0.5em 0.75em;
+    font-weight: 500;
+    transition: all 0.2s;
 }
 
 .badge.bg-info {
@@ -202,26 +255,18 @@ body {
     border-color: #383e45;
 }
 
-/* Table styling */
-.table {
-    margin-bottom: 0;
-}
-
-.table-dark {
-    background-color: #1a1a1a;
-}
-
-.table-dark td, .table-dark th {
-    border-color: #333;
-    padding: 0.75rem 1rem;
-}
-
-.table-dark thead th {
-    background-color: #252525;
-    border-bottom: 2px solid #444;
-}
-
 /* Responsive adjustments */
+@media (max-width: 992px) {
+    .stat-box {
+        border-right: none;
+        border-bottom: 1px solid #3a3f44;
+    }
+    
+    .stat-box:last-child {
+        border-bottom: none;
+    }
+}
+
 @media (max-width: 768px) {
     .stat-value {
         font-size: 1.2rem;
@@ -230,4 +275,20 @@ body {
     .navbar-brand span {
         display: none;
     }
+}
+
+/* Custom styles for specific elements */
+#model-status-value.bg-success, 
+#last-signal-value.bg-success {
+    background-color: #2ea44f !important;
+}
+
+#model-status-value.bg-danger,
+#last-signal-value.bg-danger {
+    background-color: #d73a49 !important;
+}
+
+.form-text {
+    color: #868e96;
+    font-size: 0.8rem;
 }
