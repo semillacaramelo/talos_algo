@@ -67,8 +67,30 @@ Trading involves significant risk, and automated trading, especially with AI, do
    source venv/bin/activate
    pip install -r requirements.txt
    ```
+
+   **Note:** If you encounter dependency conflicts during installation, particularly with numpy versions, try these solutions:
+   - Use the updated requirements.txt which properly manages package version conflicts
+   - If issues persist with python-deriv-api installation, install it directly:
+     ```bash
+     pip install git+https://github.com/deriv-com/python-deriv-api.git@7e8dd0f0920d4eac0fb904891e4005178a30ee19
+     ```
+
 3. Configure `config/settings.py` and `config/secrets.env` with your settings and API keys.
 4. Run the bot:
    ```bash
    python src/main.py
    ```
+
+### Web Interface
+The project includes a Flask-based web dashboard for:
+- Starting and stopping the trading bot
+- Monitoring bot status and active trades 
+- Viewing account balance and performance metrics
+- Accessing real-time logs
+- Configuring settings
+
+To start the web interface:
+```bash
+python app.py
+```
+Then navigate to http://localhost:5000 in your browser.
