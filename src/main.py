@@ -1,5 +1,11 @@
 import sys
 import os
+
+# Fix import path by adding project root directory to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import asyncio
 from collections import deque
 from datetime import datetime
@@ -13,6 +19,18 @@ from config.settings import (
     MAX_CONCURRENT_TRADES, DYNAMIC_STAKE_PERCENT, MIN_STAKE_AMOUNT,
     MAX_STAKE_AMOUNT, MAX_DAILY_LOSS
 )
+
+# Adding a main function that can be imported from talos_algo.py
+async def main_async():
+    """Main async entry point for the trading bot."""
+    # Get API key from environment variable with default empty string
+    api_key = os.getenv("DERIV_API_TOKEN", "")
+    bot = TradingBot(api_key)
+    await bot.run()
+
+def main():
+    """Main synchronous entry point that runs the async main function."""
+    asyncio.run(main_async())
 
 class TradingBot:
     def __init__(self, api_key: str = ""):
@@ -427,7 +445,4 @@ class TradingBot:
                 print(f"Error in cleanup: {e}")
 
 if __name__ == "__main__":
-    # Get API key from environment variable with default empty string
-    api_key = os.getenv("DERIV_API_TOKEN", "")
-    bot = TradingBot(api_key)
-    asyncio.run(bot.run())
+    main()

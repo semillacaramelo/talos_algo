@@ -9,8 +9,8 @@ plotly>=6.0.0
 torch>=2.1.0
 
 # Trading specific libraries
-pandas-ta>=0.3.14b0
-websockets>=11.0.0
+pandas-ta  # Updated to use latest version without specifying a specific version
+websockets==10.3  # Changed from >=11.0.0 to ==10.3 to match python-deriv-api requirement
 
 # API dependencies
 # Using a direct GitHub reference with installation instructions

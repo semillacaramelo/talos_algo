@@ -4,6 +4,13 @@ from joblib import load
 from typing import Tuple, Optional, List, Union
 import numpy as np
 import pandas_ta as ta
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Constants
+MIN_FEATURE_POINTS = 50  # Increased from default to ensure enough data for calculations
 
 # Features used by the model
 FEATURE_COLUMNS = [
@@ -48,6 +55,14 @@ def train_or_load_model(model_path: str = "",
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators for feature engineering."""
+    if df is None or df.empty:
+        logger.error("Cannot engineer features on empty DataFrame")
+        return pd.DataFrame()
+        
+    if len(df) < MIN_FEATURE_POINTS:
+        logger.warning(f"DataFrame has only {len(df)} points, minimum {MIN_FEATURE_POINTS} required for reliable feature engineering")
+        # Still continue and try to process it, the caller will handle if returns empty
+    
     try:
         # Basic price changes
         df['price_change'] = df['close'].pct_change()
@@ -122,7 +137,14 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             # Manual calculation for CCI
             tp = (df['high'] + df['low'] + df['close']) / 3  # Typical price
             tp_sma = tp.rolling(window=20).mean()  # SMA of typical price
-            md = tp.rolling(window=20).apply(lambda x: pd.Series(x).mad())  # Mean deviation
+            
+            # Instead of using Series.mad() which might not be available in all pandas versions,
+            # calculate mean absolute deviation manually
+            def mad(x):
+                return np.abs(x - x.mean()).mean()
+            
+            md = tp.rolling(window=20).apply(mad, raw=True)  # Mean deviation using custom function
+            
             # Handle zero mean deviation
             df['cci'] = df.apply(
                 lambda x: (x['close'] - tp_sma.loc[x.name]) / (0.015 * md.loc[x.name]) if md.loc[x.name] > 0 else 0,
@@ -131,7 +153,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             # Normalize CCI for consistent scale with other features
             df['cci'] = df['cci'] / 100
         except Exception as e:
-            print(f"CCI calculation error: {e}")
+            logger.error(f"CCI calculation error: {e}")
             df['cci'] = 0  # Neutral value
         
         # New Feature #4: MFI (Money Flow Index) - volume weighted RSI
@@ -143,7 +165,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
                 else:
                     df['mfi'] = 50  # Neutral value for MFI
             except Exception as e:
-                print(f"MFI calculation error: {e}")
+                logger.error(f"MFI calculation error: {e}")
                 df['mfi'] = 50  # Neutral value
         else:
             # No volume data, use RSI as proxy for MFI
@@ -156,7 +178,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
                 # Normalize OBV based on the last 20 periods
                 df['obv_norm'] = (df['obv'] - df['obv'].rolling(20).min()) / (df['obv'].rolling(20).max() - df['obv'].rolling(20).min())
             except Exception as e:
-                print(f"OBV calculation error: {e}")
+                logger.error(f"OBV calculation error: {e}")
                 # Use price momentum as a proxy
                 df['obv_norm'] = df['price_change'].rolling(10).sum() / df['price_change'].rolling(10).std()
         else:
@@ -201,7 +223,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             df['wma_diff'] = (df['wma_fast'] - df['wma_slow']) / df['close']
             
         except Exception as e:
-            print(f"WMA calculation error: {e}")
+            logger.error(f"WMA calculation error: {e}")
             # Fallback to SMA if WMA fails
             df['wma_fast'] = df['close'].rolling(window=10).mean()
             df['wma_slow'] = df['close'].rolling(window=30).mean()
@@ -241,7 +263,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             df['price_to_cloud'] = (df['close'] - (df['senkou_span_a'] + df['senkou_span_b'])/2) / df['close']
             
         except Exception as e:
-            print(f"Ichimoku calculation error: {e}")
+            logger.error(f"Ichimoku calculation error: {e}")
             # Fallback calculation
             df['tenkan'] = df['close'].rolling(window=9).mean()
             df['kijun'] = df['close'].rolling(window=26).mean()
@@ -251,25 +273,39 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             df['price_to_cloud'] = 0
         
         # Drop any rows with NaN values after all calculations
-        df = df.dropna()
-
+        df.dropna(inplace=True)
+        
+        if df.empty:
+            logger.warning("After feature engineering and dropping NaN values, DataFrame is empty")
+        
         return df
+        
     except Exception as e:
-        print(f"Error engineering features: {e}")
+        logger.error(f"Error during feature calculation: {e}", exc_info=False)
         return pd.DataFrame()
 
 def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
     """Generate trading signals using the ML model with improved features."""
+    from enum import Enum
+    
+    # Define constants for signal types
+    class Signal(str, Enum):
+        BUY = "BUY"
+        SELL = "SELL" 
+        HOLD = "HOLD"
+    
     try:
-        if len(recent_data) < 52:  # Minimum required points for Ichimoku calculation
-            print(f"Not enough data points for feature calculation: {len(recent_data)} (need 52+)")
-            return None
-
-        # Engineer features
+        if recent_data is None or len(recent_data) < MIN_FEATURE_POINTS:
+            logger.warning(f"Not enough data points for feature calculation: {len(recent_data) if recent_data is not None else 0} (need {MIN_FEATURE_POINTS}+)")
+            return Signal.HOLD
+        
+        # Engineer features - only after checking min data points
         df = engineer_features(recent_data.copy())
-        if df.empty:
-            print("Feature engineering resulted in empty DataFrame")
-            return None
+        
+        # Handle empty dataframe case immediately
+        if df is None or df.empty:
+            logger.warning("Feature engineering resulted in empty DataFrame")
+            return Signal.HOLD
             
         # Get currently selected features for the model
         try:
@@ -281,20 +317,20 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
             
             if os.path.exists(features_path):
                 selected_features = joblib.load(features_path)
-                print(f"Using {len(selected_features)} selected features for prediction")
+                logger.info(f"Using {len(selected_features)} selected features for prediction")
             else:
                 # If no selected features file exists, use all features
                 selected_features = FEATURE_COLUMNS
-                print("Using all features for prediction (no feature selection file found)")
+                logger.info("Using all features for prediction (no feature selection file found)")
                 
             # Load threshold statistics if available
             threshold_stats = None
             if os.path.exists(threshold_path):
                 threshold_stats = joblib.load(threshold_path)
-                print(f"Using adaptive threshold with avg value: {threshold_stats['avg_threshold']:.6f}")
+                logger.info(f"Using adaptive threshold with avg value: {threshold_stats['avg_threshold']:.6f}")
             
         except Exception as e:
-            print(f"Error loading selected features: {e}")
+            logger.error(f"Error loading selected features: {e}")
             # If there's an error, use all features
             selected_features = FEATURE_COLUMNS
             threshold_stats = None
@@ -304,34 +340,41 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
         
         if len(available_features) < len(selected_features):
             missing = set(selected_features) - set(available_features)
-            print(f"Warning: Missing {len(missing)} features: {missing}")
+            logger.warning(f"Missing {len(missing)} features: {missing}")
             
         if not available_features:
-            print("No valid features available for prediction")
-            return None
+            logger.warning("No valid features available for prediction")
+            return Signal.HOLD
             
         features_df = df[available_features].iloc[-1:]
         
         # Calculate prediction confidence before converting to numpy array
         # Check current volatility for adaptive threshold
         if threshold_stats:
-            # Calculate current volatility
-            current_volatility = df['close'].pct_change().rolling(window=20).std().iloc[-1]
-            
-            # Determine current adaptive threshold
-            adaptive_threshold = max(
-                current_volatility * threshold_stats['volatility_multiplier'],
-                threshold_stats['min_threshold']
-            )
-            
-            print(f"Current volatility: {current_volatility:.6f}, Adaptive threshold: {adaptive_threshold:.6f}")
+            try:
+                # Calculate current volatility
+                current_volatility = df['close'].pct_change().rolling(window=20).std().iloc[-1]
+                
+                # Determine current adaptive threshold
+                adaptive_threshold = max(
+                    current_volatility * threshold_stats['volatility_multiplier'],
+                    threshold_stats['min_threshold']
+                )
+                
+                logger.info(f"Current volatility: {current_volatility:.6f}, Adaptive threshold: {adaptive_threshold:.6f}")
+            except Exception as e:
+                logger.error(f"Error calculating adaptive threshold: {e}")
         
         # Convert to numpy array without feature names to avoid warnings
         features = features_df.values
 
         # Scale features
         if scaler:
-            features = scaler.transform(features)
+            try:
+                features = scaler.transform(features)
+            except Exception as e:
+                logger.error(f"Error during feature scaling: {e}")
+                return Signal.HOLD
 
         # Get prediction probability
         try:
@@ -343,8 +386,8 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
             min_confidence = 0.55  # Can be adjusted
             
             if confidence < min_confidence:
-                print(f"Prediction confidence too low: {confidence:.4f} < {min_confidence}")
-                return None
+                logger.info(f"Prediction confidence too low: {confidence:.4f} < {min_confidence}")
+                return Signal.HOLD
                 
             # Make prediction
             prediction = prediction_class
@@ -352,59 +395,74 @@ def generate_signal(model, scaler, recent_data: pd.DataFrame) -> Optional[str]:
         except AttributeError:
             # If model doesn't have predict_proba, use regular predict
             prediction = model.predict(features)[0]
+        except Exception as e:
+            logger.error(f"Error during prediction: {e}")
+            return Signal.HOLD
 
         # Apply contextual logic based on price action
-        # Get latest price data
-        latest_close = df['close'].iloc[-1]
-        prev_close = df['close'].iloc[-2]
-        price_change = (latest_close - prev_close) / prev_close
-        
-        # Check for extreme price movements that might need caution
-        extreme_move_threshold = 0.005  # 0.5% change
-        
-        if abs(price_change) > extreme_move_threshold:
-            # In case of extreme movements, be more cautious
-            print(f"Extreme price movement detected: {price_change:.4f}")
+        try:
+            # Get latest price data
+            latest_close = df['close'].iloc[-1]
+            prev_close = df['close'].iloc[-2]
+            price_change = (latest_close - prev_close) / prev_close
             
-            # Don't chase extreme movements in the same direction
-            if (prediction == 1 and price_change > extreme_move_threshold) or \
-               (prediction == 0 and price_change < -extreme_move_threshold):
-                print("Avoiding chasing extreme price movement")
-                return None
+            # Check for extreme price movements that might need caution
+            extreme_move_threshold = 0.005  # 0.5% change
+            
+            if abs(price_change) > extreme_move_threshold:
+                # In case of extreme movements, be more cautious
+                logger.info(f"Extreme price movement detected: {price_change:.4f}")
+                
+                # Don't chase extreme movements in the same direction
+                if (prediction == 1 and price_change > extreme_move_threshold) or \
+                   (prediction == 0 and price_change < -extreme_move_threshold):
+                    logger.info("Avoiding chasing extreme price movement")
+                    return Signal.HOLD
+        except Exception as e:
+            logger.error(f"Error during price action analysis: {e}")
         
         # Map prediction to signal, including confidence
         if prediction == 1:
-            return "BUY"
+            return Signal.BUY
         else:
-            return "SELL"
+            return Signal.SELL
 
     except Exception as e:
-        print(f"Error generating signal: {e}")
-        return None
+        logger.error(f"Error generating signal: {e}")
+        return Signal.HOLD
 
-#Retain the original function, adapting it to use the new functions.
 def generate_signals_for_dataset(model_obj, scaler_obj, df):
     """Generate signals for entire dataset."""
     result_signals = pd.Series(0, index=df.index)
 
     if model_obj is None:
-        print("ML model not loaded")
+        logger.error("ML model not loaded")
+        return result_signals
+
+    # Check if we have enough data points for feature engineering
+    if len(df) < MIN_FEATURE_POINTS:
+        logger.warning(f"Not enough data points for feature calculation: {len(df)} (need {MIN_FEATURE_POINTS}+)")
         return result_signals
 
     try:
         feature_df = engineer_features(df.copy())
 
         if feature_df.empty:
-            print("Empty dataset after feature engineering")
+            logger.warning("Empty dataset after feature engineering")
             return result_signals
 
         missing_columns = [col for col in FEATURE_COLUMNS if col not in feature_df.columns]
         if missing_columns:
-            print(f"Missing features: {missing_columns}")
+            logger.warning(f"Missing features: {missing_columns}")
             return result_signals
 
         # Get features as DataFrame first
-        X_df = feature_df[FEATURE_COLUMNS]
+        available_features = [f for f in FEATURE_COLUMNS if f in feature_df.columns]
+        if not available_features:
+            logger.warning("No valid features available for prediction")
+            return result_signals
+            
+        X_df = feature_df[available_features]
         
         # Convert to numpy array to avoid feature names warnings
         X = X_df.values
@@ -413,7 +471,7 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
             try:
                 X_scaled = scaler_obj.transform(X)
             except Exception as e:
-                print(f"Scaling error: {e}")
+                logger.error(f"Scaling error: {e}")
                 return result_signals
         else:
             X_scaled = X
@@ -425,5 +483,5 @@ def generate_signals_for_dataset(model_obj, scaler_obj, df):
         return result_signals
 
     except Exception as e:
-        print(f"Error generating dataset signals: {e}")
+        logger.error(f"Error generating dataset signals: {e}", exc_info=True)
         return result_signals
